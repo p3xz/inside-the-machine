@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { INFO, STAGES, stageAt } from "@/lib/journey-data";
 import { click, isMuted, setMuted } from "@/lib/audio";
-import type { GateInputs } from "./MachineScene";
+import type { BootPhase, GateInputs } from "./MachineScene";
 
 function useProgress() {
   const [p, setP] = useState(0);
@@ -22,6 +22,15 @@ function useProgress() {
 const fade = (p: number, a: number, b: number, edge = 0.02) =>
   Math.max(0, Math.min(1, (p - a) / edge, (b - p) / edge));
 
+/** short black beat when the camera passes through the case */
+const beat = (p: number) => {
+  const a = 0.322;
+  const pk = 0.335;
+  const b = 0.352;
+  if (p < a || p > b) return 0;
+  return p < pk ? (p - a) / (pk - a) : 1 - (p - pk) / (b - pk);
+};
+
 type Props = {
   selectedId: string | null;
   onClose: () => void;
@@ -31,6 +40,9 @@ type Props = {
   onToggle: (k: string) => void;
   transistorOn: boolean;
   setTransistorOn: (v: boolean) => void;
+  boot: BootPhase;
+  onPower: () => void;
+  onReset: () => void;
 };
 
 export function Hud(props: Props) {
@@ -48,11 +60,27 @@ export function Hud(props: Props) {
 
   return (
     <div className="hud">
+      {/* boot overlay */}
+      {props.boot !== "on" && (
+        <div className="boot-overlay" data-state={props.boot}>
+          {props.boot === "off" && (
+            <button className="power-btn" onClick={props.onPower} aria-label="Power on">
+              <span className="power-ring" aria-hidden="true" />
+              POWER ON
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* black beat when entering the case */}
+      <div className="dive-black" style={{ opacity: beat(p) }} aria-hidden="true" />
+
       {/* top-left */}
+      {props.boot === "on" && (
       <div className="hud-brand">
         <div className="hud-title">INSIDE THE MACHINE</div>
         <div className="hud-meta">
-          COMPUTING / <span className="text-primary">{stage.num}</span>—07
+          COMPUTING / <span className="text-primary">{stage.num}</span>—08
         </div>
         <button
           className="sound-toggle"
@@ -71,8 +99,10 @@ export function Hud(props: Props) {
           <span className="sound-label">{soundOn ? "SOUND ON" : "SOUND OFF"}</span>
         </button>
       </div>
+      )}
 
       {/* stage rail */}
+      {props.boot === "on" && (
       <nav className="hud-rail" aria-label="Journey stages">
         <div className="hud-rail-line">
           <div className="hud-rail-fill" style={{ height: `${p * 100}%` }} />
@@ -95,8 +125,10 @@ export function Hud(props: Props) {
           ))}
         </ol>
       </nav>
+      )}
 
       {/* intro */}
+      {props.boot === "on" && (
       <div className="intro" style={{ opacity: 1 - Math.min(1, p / 0.04) }}>
         <p className="eyebrow">A JOURNEY THROUGH COMPUTATION</p>
         <h1 className="intro-title">Inside the Machine</h1>
@@ -108,11 +140,16 @@ export function Hud(props: Props) {
           <span className="scroll-cue-line" />
         </div>
       </div>
+      )}
 
       {/* stage captions */}
       {STAGES.map((s) => {
-        const a = s.id === "computer" ? 0.045 : s.start + 0.01;
-        const b = s.id === "transistor" ? 0.955 : s.end - 0.005;
+        const a = s.id === "room" ? 0.045 : s.id === "return" ? 0.915 : s.start + 0.01;
+        const b =
+          s.id === "transistor" ? 0.89
+          : s.id === "return" ? 0.975
+          : s.id === "room" ? 0.095
+          : s.end - 0.005;
         const o = fade(p, a, b);
         if (o <= 0) return null;
         return (
@@ -127,8 +164,8 @@ export function Hud(props: Props) {
       })}
 
       {/* logic console */}
-      {fade(p, 0.735, 0.875) > 0 && (
-        <div className="console" style={{ opacity: fade(p, 0.735, 0.875) }}>
+      {fade(p, 0.688, 0.80) > 0 && (
+        <div className="console" style={{ opacity: fade(p, 0.688, 0.80) }}>
           <div className="console-tabs" role="tablist">
             {(["and", "or", "not"] as const).map((k) => (
               <button key={k} role="tab" aria-selected={g === k} className="console-tab" onClick={() => props.setActiveGate(k)}>
@@ -160,8 +197,8 @@ export function Hud(props: Props) {
       )}
 
       {/* transistor console */}
-      {fade(p, 0.905, 0.958) > 0 && (
-        <div className="console" style={{ opacity: fade(p, 0.905, 0.958) }}>
+      {fade(p, 0.824, 0.866) > 0 && (
+        <div className="console" style={{ opacity: fade(p, 0.824, 0.866) }}>
           <p className="eyebrow">GATE VOLTAGE</p>
           <button
             className="switch"
@@ -179,16 +216,11 @@ export function Hud(props: Props) {
       )}
 
       {/* ending */}
-      {p > 0.962 && (
-        <div className="ending" style={{ opacity: Math.min(1, (p - 0.962) / 0.025) }}>
-          <ol className="ending-chain">
-            <li>FROM A TINY SWITCH</li>
-            <li>TO A LOGIC GATE</li>
-            <li>TO A PROCESSOR</li>
-            <li>TO A COMPUTER</li>
-          </ol>
-          <p className="ending-line">You just travelled through the layers of computation.</p>
-          <button className="explore" onClick={() => { click(); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
+      {p > 0.985 && props.boot === "on" && (
+        <div className="ending" style={{ opacity: Math.min(1, (p - 0.985) / 0.015) }}>
+          <p className="eyebrow">INSIDE THE MACHINE</p>
+          <p className="ending-line">The journey happened between two keystrokes.</p>
+          <button className="explore" onClick={() => { click(); props.onReset(); }}>
             EXPLORE AGAIN ↑
           </button>
         </div>

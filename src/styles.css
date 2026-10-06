@@ -210,3 +210,16 @@
 .sound-icon[data-on="false"]::after { opacity: 0.15; }
 .sound-icon[data-on="false"]::before { content: ""; position: absolute; left: 1px; right: 1px; top: 50%; height: 1px; background: currentColor; transform: rotate(-45deg); }
 .sound-label { font-family: var(--font-mono); }
+
+/* boot sequence */
+.boot-overlay { position: fixed; inset: 0; z-index: 60; background: #000; display: flex; align-items: center; justify-content: center; transition: opacity 1.4s ease; }
+.boot-overlay[data-state="starting"] { opacity: 0; pointer-events: none; }
+.power-btn { display: flex; flex-direction: column; align-items: center; gap: 1.1rem; background: none; border: 0; color: var(--muted-foreground); font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.3em; text-transform: uppercase; transition: color .4s; }
+.power-btn:hover { color: var(--foreground); }
+.power-ring { width: 54px; height: 54px; border: 1px solid var(--hairline); border-radius: 50%; position: relative; transition: border-color .4s, box-shadow .4s, color .4s; }
+.power-ring::after { content: ""; position: absolute; top: 12px; left: 50%; width: 1px; height: 14px; background: currentColor; transform: translateX(-50%); }
+.power-ring::before { content: ""; position: absolute; inset: 12px; border: 1px solid currentColor; border-top-color: transparent; border-radius: 50%; transform: rotate(-40deg); }
+.power-btn:hover .power-ring { border-color: var(--primary); box-shadow: var(--glow); color: var(--primary); }
+
+/* black beat when the camera enters the case */
+.dive-black { position: fixed; inset: 0; z-index: 5; background: #000; pointer-events: none; }

@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
-import { MachineScene, type GateInputs } from "@/components/machine/MachineScene";
+import { MachineScene, type BootPhase, type GateInputs } from "@/components/machine/MachineScene";
 import { Hud } from "@/components/machine/Hud";
-import { bitToggle, click, power, select, unlockAudio } from "@/lib/audio";
+import { bitToggle, click, power, select, setAudioZone, startup, stopAll, whoosh } from "@/lib/audio";
 
 export const Route = createFileRoute("/")({
   ssr: false,
@@ -24,10 +24,50 @@ function Index() {
   const [gates, setGates] = useState<GateInputs>({ and: [0, 0], or: [0, 0], not: [0] });
   const [activeGate, setActiveGate] = useState<"and" | "or" | "not">("and");
   const [transistorOn, setTransistorOn] = useState(false);
+  const [boot, setBoot] = useState<BootPhase>("off");
 
-  useEffect(() => {
-    unlockAudio();
+  const onPower = useCallback(() => {
+    startup(); // runs inside the click gesture, unlocking browser audio
+    setAudioZone("room");
+    setBoot("starting");
+    window.setTimeout(() => setBoot("on"), 1700);
   }, []);
+
+  const onReset = useCallback(() => {
+    setSelectedId(null);
+    stopAll();
+    setBoot("off");
+    window.scrollTo({ top: 0, behavior: "auto" });
+  }, []);
+
+  // lock scroll until the machine is powered on
+  useEffect(() => {
+    document.body.style.overflow = boot === "off" ? "hidden" : "";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [boot]);
+
+  // soundscape follows the journey: room tone outside, ambient pad inside
+  useEffect(() => {
+    if (boot === "off") return;
+    let raf = 0;
+    let whooshed = false;
+    const tick = () => {
+      const max = document.documentElement.scrollHeight - window.innerHeight;
+      const p = max > 0 ? Math.min(1, Math.max(0, window.scrollY / max)) : 0;
+      setAudioZone(p < 0.28 || p > 0.9 ? "room" : "inside");
+      if (!whooshed && p > 0.33) {
+        whooshed = true;
+        whoosh();
+      } else if (p < 0.2) {
+        whooshed = false;
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [boot]);
 
   const onSelect = useCallback((id: string | null) => {
     setSelectedId(id);
@@ -65,7 +105,7 @@ function Index() {
 
   return (
     <main>
-      <MachineScene selectedId={selectedId} onSelect={onSelect} onToggle={onToggle} gates={gates} transistorOn={transistorOn} />
+      <MachineScene selectedId={selectedId} onSelect={onSelect} onToggle={onToggle} gates={gates} transistorOn={transistorOn} bootPhase={boot} />
       <Hud
         selectedId={selectedId}
         onClose={onClose}
@@ -75,6 +115,9 @@ function Index() {
         onToggle={onToggle}
         transistorOn={transistorOn}
         setTransistorOn={onTransistor}
+        boot={boot}
+        onPower={onPower}
+        onReset={onReset}
       />
       <div className="scroll-track" aria-hidden="true" />
     </main>

@@ -16,12 +16,15 @@ const C = {
 
 export type GateInputs = { and: [number, number]; or: [number, number]; not: [number] };
 
+export type BootPhase = "off" | "starting" | "on";
+
 type Props = {
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   onToggle: (key: string) => void;
   gates: GateInputs;
   transistorOn: boolean;
+  bootPhase: BootPhase;
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -87,7 +90,7 @@ const Pulse = ({ from, to, dur = 2200, delay = 0, color = C.cyan, r = 0.025 }: {
 
 const wire = (on: boolean) => (on ? C.cyan : C.dim);
 
-function SceneInner({ selectedId, onSelect, onToggle, gates, transistorOn }: Props) {
+function SceneInner({ selectedId, onSelect, onToggle, gates, transistorOn, bootPhase }: Props) {
   const sceneRef = useRef<Any>(null);
   const camRef = useRef<Any>(null);
   const cb = useRef({ onSelect, onToggle });
@@ -130,9 +133,18 @@ function SceneInner({ selectedId, onSelect, onToggle, gates, transistorOn }: Pro
       }
       const fog = sceneRef.current?.object3D?.fog;
       if (fog) {
-        const f = Math.max(0, (p - 0.955) / 0.045);
-        fog.far = 22 + ease(f) * 110;
-        fog.near = 2 + ease(f) * 20;
+        let near = 2;
+        let far = 22;
+        if (p > 0.87 && p < 0.93) {
+          const f = ease((p - 0.87) / 0.06);
+          far = 22 + f * 110;
+          near = 2 + f * 20;
+        } else if (p >= 0.93) {
+          far = 36;
+          near = 2;
+        }
+        fog.far = far;
+        fog.near = near;
       }
       if (token) {
         const t = (now % 4200) / 4200;
@@ -217,6 +229,7 @@ function SceneInner({ selectedId, onSelect, onToggle, gates, transistorOn }: Pro
   const andOut = gates.and[0] & gates.and[1];
   const orOut = gates.or[0] | gates.or[1];
   const notOut = gates.not[0] ? 0 : 1;
+  const monitorOn = bootPhase !== "off";
 
   return (
     <a-scene
@@ -237,6 +250,45 @@ function SceneInner({ selectedId, onSelect, onToggle, gates, transistorOn }: Pro
       <a-entity light="type: directional; color: #cfe9ff; intensity: 0.9" position="4 8 10" />
       <a-entity light={`type: point; color: ${C.cyan}; intensity: 1.4; distance: 9`} position="0 2 2" />
       <a-entity starfield />
+
+      {/* ============ 00 ROOM : quiet lab at night ============ */}
+      <a-plane position="0 0 10" rotation="-90 0 0" width="70" height="50" material="color: #07090c; roughness: 1" />
+      <a-plane position="0 0.01 10" rotation="-90 0 0" width="70" height="50" geometry="segmentsWidth: 35; segmentsHeight: 25" material={`color: ${C.cyan}; wireframe: true; opacity: 0.035; transparent: true; shader: flat`} />
+      <a-plane position="0 4 24" width="70" height="10" material="color: #05070a; roughness: 1" />
+
+      {/* desk + monitor + keyboard */}
+      <a-entity position="-3.5 0 13">
+        <a-box position="0 0.78 0" width="3.2" height="0.08" depth="1.6" material="color: #10151b; roughness: 0.7" />
+        {[[-1.5, -0.7], [1.5, -0.7], [-1.5, 0.7], [1.5, 0.7]].map(([x, z], i) => (
+          <a-box key={i} position={`${x} 0.39 ${z}`} width="0.08" height="0.78" depth="0.08" material="color: #0b0f14; roughness: 0.8" />
+        ))}
+        <a-box position="0 1.0 -0.35" width="0.12" height="0.45" depth="0.12" material="color: #0b0f14" />
+        <a-box position="0 1.06 -0.35" width="0.5" height="0.04" depth="0.4" material="color: #0b0f14" />
+        <a-box position="0 1.5 -0.35" width="1.5" height="0.95" depth="0.08" material="color: #0a0e13; roughness: 0.4" />
+        <a-plane position="0 1.5 -0.3" width="1.38" height="0.83" material={`color: #0d2b33; emissive: #a8dcf0; emissiveIntensity: ${monitorOn ? 0.85 : 0}; roughness: 0.6`} />
+        <a-entity light={`type: point; color: #bfe6f5; intensity: ${monitorOn ? 1.1 : 0}; distance: 7`} position="0 1.5 0.8" />
+        <a-box position="0 0.845 0.35" width="1.1" height="0.045" depth="0.4" material="color: #141a21; roughness: 0.6" />
+      </a-entity>
+
+      {/* person at the desk, typing */}
+      <a-entity position="-3.5 0 14.6">
+        <a-box position="0 0.45 0.1" width="0.62" height="0.07" depth="0.62" material="color: #0d1218; roughness: 0.8" />
+        <a-box position="0 0.95 0.38" width="0.62" height="0.9" depth="0.07" material="color: #0d1218; roughness: 0.8" />
+        <a-box position="0 0.22 0.1" width="0.07" height="0.45" depth="0.07" material="color: #0d1218" />
+        <a-box position="0 1.0 0" width="0.55" height="0.7" depth="0.32" material="color: #1c2530; roughness: 0.8" />
+        <a-box position="0 1.56 -0.02" width="0.3" height="0.34" depth="0.3" material="color: #2b3644; roughness: 0.7"
+          animation="property: position; from: 0 1.56 -0.02; to: 0 1.53 -0.02; dir: alternate; dur: 2600; loop: true; easing: easeInOutSine" />
+        <a-box position="-0.33 1.15 -0.1" width="0.14" height="0.5" depth="0.14" rotation="-30 0 0" material="color: #1c2530; roughness: 0.8" />
+        <a-box position="0.33 1.15 -0.1" width="0.14" height="0.5" depth="0.14" rotation="-30 0 0" material="color: #1c2530; roughness: 0.8" />
+        <a-box position="-0.22 0.92 -0.55" width="0.12" height="0.12" depth="0.55" rotation="8 0 0" material="color: #232f3d; roughness: 0.8"
+          animation="property: position; from: -0.22 0.92 -0.55; to: -0.22 0.885 -0.55; dir: alternate; dur: 480; loop: true; easing: easeInOutSine" />
+        <a-box position="0.22 0.92 -0.55" width="0.12" height="0.12" depth="0.55" rotation="8 0 0" material="color: #232f3d; roughness: 0.8"
+          animation="property: position; from: 0.22 0.92 -0.55; to: 0.22 0.885 -0.55; dir: alternate; dur: 620; loop: true; easing: easeInOutSine" />
+        <a-box position="-0.16 0.52 -0.3" width="0.2" height="0.2" depth="0.6" material="color: #161e28; roughness: 0.85" />
+        <a-box position="0.16 0.52 -0.3" width="0.2" height="0.2" depth="0.6" material="color: #161e28; roughness: 0.85" />
+        <a-box position="-0.16 0.25 -0.55" width="0.18" height="0.5" depth="0.18" material="color: #161e28; roughness: 0.85" />
+        <a-box position="0.16 0.25 -0.55" width="0.18" height="0.5" depth="0.18" material="color: #161e28; roughness: 0.85" />
+      </a-entity>
 
       {/* ============ 01 COMPUTER CASE ============ */}
       <a-entity position="0 1.2 -0.6">

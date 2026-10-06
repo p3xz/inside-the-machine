@@ -38,8 +38,13 @@ export function setMuted(m: boolean): void {
   } catch {
     // ignore
   }
-  if (m) stopAmbient();
-  else startAmbient();
+  if (m) {
+    stopAmbient();
+    stopRoomTone();
+    lastZone = "muted";
+  } else {
+    lastZone = null; // next setAudioZone call re-applies the current zone
+  }
 }
 
 function blip(
@@ -197,4 +202,148 @@ export function unlockAudio(): void {
     window.addEventListener("pointerdown", start, { once: false });
     window.addEventListener("keydown", start, { once: false });
   }
+}
+
+// ---------------------------------------------------------------------------
+// Room > machine audio arc: room tone, startup blip, case whoosh, zone switch.
+// ---------------------------------------------------------------------------
+
+let noiseBuf: AudioBuffer | null = null;
+function noiseBuffer(c: AudioContext): AudioBuffer {
+  if (!noiseBuf) {
+    const len = c.sampleRate * 2;
+    noiseBuf = c.createBuffer(1, len, c.sampleRate);
+    const d = noiseBuf.getChannelData(0);
+    let last = 0;
+    for (let i = 0; i < len; i++) {
+      const w = Math.random() * 2 - 1;
+      last = (last + 0.02 * w) / 1.02;
+      d[i] = last * 3.2;
+    }
+  }
+  return noiseBuf;
+}
+
+let roomNodes: { stop: () => void } | null = null;
+
+/** Very quiet lab hum and air for the room. */
+export function startRoomTone(): void {
+  if (muted || roomNodes) return;
+  const c = ac();
+  if (!c) return;
+  const t = c.currentTime;
+  const src = c.createBufferSource();
+  src.buffer = noiseBuffer(c);
+  src.loop = true;
+  const lp = c.createBiquadFilter();
+  lp.type = "lowpass";
+  lp.frequency.setValueAtTime(320, t);
+  const g = c.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(0.022, t + 2.5);
+  const hum = c.createOscillator();
+  hum.type = "sine";
+  hum.frequency.setValueAtTime(54, t);
+  const hg = c.createGain();
+  hg.gain.setValueAtTime(0.0001, t);
+  hg.gain.exponentialRampToValueAtTime(0.006, t + 2.5);
+  src.connect(lp);
+  lp.connect(g);
+  g.connect(c.destination);
+  hum.connect(hg);
+  hg.connect(c.destination);
+  src.start(t);
+  hum.start(t);
+  roomNodes = {
+    stop: () => {
+      const n = c.currentTime;
+      try {
+        g.gain.cancelScheduledValues(n);
+        g.gain.setValueAtTime(Math.max(0.0001, g.gain.value), n);
+        g.gain.exponentialRampToValueAtTime(0.0001, n + 0.8);
+        hg.gain.cancelScheduledValues(n);
+        hg.gain.setValueAtTime(Math.max(0.0001, hg.gain.value), n);
+        hg.gain.exponentialRampToValueAtTime(0.0001, n + 0.8);
+      } catch {
+        /* noop */
+      }
+      setTimeout(() => {
+        try {
+          src.stop();
+          hum.stop();
+        } catch {
+          /* noop */
+        }
+      }, 1000);
+    },
+  };
+}
+
+export function stopRoomTone(): void {
+  roomNodes?.stop();
+  roomNodes = null;
+}
+
+/** Soft power-on: low sweep up plus a monitor tick. */
+export function startup(): void {
+  blip(150, 0.55, "sine", 0.09, 0, 520);
+  blip(1040, 0.25, "sine", 0.03, 0.4);
+  blip(880, 0.09, "triangle", 0.05, 0.85);
+}
+
+/** Air rush for passing through the case. */
+export function whoosh(): void {
+  const c = ac();
+  if (!c || muted) return;
+  const t = c.currentTime;
+  const src = c.createBufferSource();
+  src.buffer = noiseBuffer(c);
+  src.loop = true;
+  const bp = c.createBiquadFilter();
+  bp.type = "bandpass";
+  bp.Q.setValueAtTime(1.1, t);
+  bp.frequency.setValueAtTime(380, t);
+  bp.frequency.exponentialRampToValueAtTime(2600, t + 0.45);
+  bp.frequency.exponentialRampToValueAtTime(420, t + 0.95);
+  const g = c.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(0.16, t + 0.4);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 1.0);
+  src.connect(bp);
+  bp.connect(g);
+  g.connect(c.destination);
+  src.start(t);
+  src.stop(t + 1.1);
+}
+
+export type AudioZone = "room" | "inside" | "silent";
+let lastZone: AudioZone | "muted" | null = null;
+
+/** Switch the soundscape by journey zone. Call every frame; no-op when unchanged. */
+export function setAudioZone(zone: AudioZone): void {
+  const key = (muted ? "muted" : zone) as AudioZone | "muted";
+  if (key === lastZone) return;
+  lastZone = key;
+  if (muted) {
+    stopAmbient();
+    stopRoomTone();
+    return;
+  }
+  if (zone === "room") {
+    stopAmbient();
+    startRoomTone();
+  } else if (zone === "inside") {
+    stopRoomTone();
+    startAmbient();
+  } else {
+    stopAmbient();
+    stopRoomTone();
+  }
+}
+
+/** Silence everything immediately. */
+export function stopAll(): void {
+  stopAmbient();
+  stopRoomTone();
+  lastZone = null;
 }
