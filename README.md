@@ -1,44 +1,38 @@
-# Inside the Machine
+# ⚡ INSIDE THE MACHINE
+### *A Scroll-Driven 3D Journey from a Computer to an Atomic Transistor*
 
-A scroll-driven 3D journey from a computer down to a single transistor. Scroll to fly through seven stages: computer case, motherboard, CPU internals, instruction pipeline, logic gates, and a working transistor switch, with clickable parts, live logic-gate playgrounds, synthesized sound, and a peaceful ambient soundtrack.
+<div align="center">
 
-![Preview](docs/preview.gif)
+[![Vite](https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![A-Frame](https://img.shields.io/badge/A--Frame-EF2D5E?style=for-the-badge&logo=a-frame&logoColor=white)](https://aframe.io/)
+[![Three.js](https://img.shields.io/badge/Three.js-black?style=for-the-badge&logo=three.js&logoColor=white)](https://threejs.org/)
+[![Web Audio API](https://img.shields.io/badge/Web_Audio_API-00E5FF?style=for-the-badge&logo=audacity&logoColor=black)](https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API)
+[![License: MIT](https://img.shields.io/badge/License-MIT-7C3AED.svg?style=for-the-badge)](LICENSE)
 
-![Tech](https://skillicons.dev/icons?i=react,typescript,vite,tailwind)
+**[🚀 Live Demo](https://inside-the-machine-one.vercel.app/)** • **[📖 Documentation](#-the-7-computational-layers)** • **[🕹️ Interactive Sandboxes](#-interactive-sandboxes--simulations)** • **[🛠️ Architecture](#-project-architecture)**
 
-## Quick start
+</div>
 
-```bash
-bun install
-bun run dev
+---
+
+## 💡 The Core Concept
+
+**Inside the Machine** is a scrollytelling WebGL 3D educational experience. As the user scrolls down the page, the camera plunges from the macroscopic view of an open computer chassis down into silicon microarchitecture, logic gates, and ultimately a single nanoscale transistor switch.
+
+The entire experience communicates one fundamental principle:
+> **Every piece of modern software — from simple calculators to planetary-scale AI models — emerges entirely from billions of tiny electronic switches flipping between ON ($1$) and OFF ($0$).**
+
+---
+
+## 🌌 The 7 Computational Layers
+
+```mermaid
+graph TD
+    A["01. COMPUTER (10⁰ m)"] --> B["02. MOTHERBOARD (10⁻¹ m)"]
+    B --> C["03. CPU PACKAGING (10⁻² m)"]
+    C --> D["04. CPU INTERNALS (10⁻⁴ m)"]
+    D --> E["05. INSTRUCTION PIPELINE (10⁻⁵ m)"]
+    E --> F["06. LOGIC GATES (10⁻⁷ m)"]
+    F --> G["07. TRANSISTOR (10⁻⁹ m)"]
 ```
-
-Then open the printed localhost URL. No accounts, no keys.
-
-## How it works
-
-- **Scroll camera**: page scroll maps to keyframed camera waypoints; the camera lerps between them every frame for a smooth flight.
-- **3D scene** (`src/components/machine/MachineScene.tsx`): A-Frame entities for every stage, a procedural starfield, data pulses travelling along traces, and clickable parts with hover glow.
-- **HUD** (`src/components/machine/Hud.tsx`): stage rail, narration captions, a logic-gate console (AND/OR/NOT with flippable inputs), and a transistor gate-voltage switch.
-- **Audio** (`src/lib/audio.ts`): everything synthesized with the Web Audio API. Soft clicks for UI, pitched blips for bit toggles, chimes for part selection, a power sweep for the transistor, and a slow evolving ambient pad (Cmaj9 Am9 Fmaj7 G6/9). Starts on first interaction; toggle in the top-left HUD, preference saved.
-- **Journey data** (`src/lib/journey-data.ts`): stage definitions, keyframes, and the info-panel copy.
-
-## Tech stack
-
-- TanStack Start (React, file-based routing, SSR off for the 3D route)
-- A-Frame + Three.js for the 3D scene
-- Tailwind CSS for the HUD
-- Bun for install/dev/build
-- Web Audio API for all sound (no audio assets)
-
-## Project structure
-
-- `src/components/machine/MachineScene.tsx`: the 3D world
-- `src/components/machine/Hud.tsx`: overlay UI
-- `src/lib/audio.ts`: synthesized sound engine
-- `src/lib/journey-data.ts`: stages, keyframes, copy
-- `src/routes/index.tsx`: state wiring
-
-## License
-
-MIT
