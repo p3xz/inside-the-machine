@@ -188,7 +188,14 @@ function Index() {
 
   const restart = useCallback(() => {
     setSelectedId(null);
+    setGates({ and: [0, 0], or: [0, 0], not: [0] });
+    setActiveGate("and");
+    setTransistorOn(false);
+    setA([1, 0, 1, 0]);
+    setB([1, 1, 0, 0]);
+    setRipple(4);
     setQuiz({ on: false, n: 0, score: 0, target: null, last: null });
+    setLegal(null);
     window.scrollTo({ top: 0, behavior: "auto" });
   }, []);
 
