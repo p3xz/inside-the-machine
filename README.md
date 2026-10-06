@@ -1,38 +1,92 @@
-# ⚡ INSIDE THE MACHINE
-### *A Scroll-Driven 3D Journey from a Computer to an Atomic Transistor*
+# INSIDE THE MACHINE
+### A Scroll-Driven 3D Journey from a Computer to an Atomic Transistor
 
-<div align="center">
+**Live Demo:** https://inside-the-machine-one.vercel.app/
 
-[![Vite](https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![A-Frame](https://img.shields.io/badge/A--Frame-EF2D5E?style=for-the-badge&logo=a-frame&logoColor=white)](https://aframe.io/)
-[![Three.js](https://img.shields.io/badge/Three.js-black?style=for-the-badge&logo=three.js&logoColor=white)](https://threejs.org/)
-[![Web Audio API](https://img.shields.io/badge/Web_Audio_API-00E5FF?style=for-the-badge&logo=audacity&logoColor=black)](https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API)
-[![License: MIT](https://img.shields.io/badge/License-MIT-7C3AED.svg?style=for-the-badge)](LICENSE)
+![Preview](docs/preview.gif)
 
-**[🚀 Live Demo](https://inside-the-machine-one.vercel.app/)** • **[📖 Documentation](#-the-7-computational-layers)** • **[🕹️ Interactive Sandboxes](#-interactive-sandboxes--simulations)** • **[🛠️ Architecture](#-project-architecture)**
+## Key Features
 
-</div>
+No VR Equipment Required: Runs in modern desktop and mobile browsers. No headsets, no installs, no accounts.
 
----
+Scroll-Driven 3D Cinematography: Scrolling moves the camera from a quiet desk down through the machine, revealing each layer one by one. The return trip ends where it started.
 
-## 💡 The Core Concept
+10 Core Educational Sections:
 
-**Inside the Machine** is a scrollytelling WebGL 3D educational experience. As the user scrolls down the page, the camera plunges from the macroscopic view of an open computer chassis down into silicon microarchitecture, logic gates, and ultimately a single nanoscale transistor switch.
+Introduction: A dark room, late at night. A person types at a desk. The journey happens between two keystrokes.
 
-The entire experience communicates one fundamental principle:
-> **Every piece of modern software — from simple calculators to planetary-scale AI models — emerges entirely from billions of tiny electronic switches flipping between ON ($1$) and OFF ($0$).**
+Computer: The camera dives through the case vent, into the box that does the work.
 
----
+Motherboard: Copper traces connect every part. Tap a component to see what it does.
 
-## 🌌 The 7 Computational Layers
+CPU: A square of silicon smaller than a stamp, reading the program billions of times a second.
 
-```mermaid
-graph TD
-    A["01. COMPUTER (10⁰ m)"] --> B["02. MOTHERBOARD (10⁻¹ m)"]
-    B --> C["03. CPU PACKAGING (10⁻² m)"]
-    C --> D["04. CPU INTERNALS (10⁻⁴ m)"]
-    D --> E["05. INSTRUCTION PIPELINE (10⁻⁵ m)"]
-    E --> F["06. LOGIC GATES (10⁻⁷ m)"]
-    F --> G["07. TRANSISTOR (10⁻⁹ m)"]
-```
+CPU Internals: Control unit directs traffic, the ALU does the maths, registers and cache keep data close.
+
+Instruction: One instruction, ADD. Fetch, decode, execute, write back.
+
+Logic Gates: AND, OR and NOT gates with flippable inputs. Real boolean logic, computed live.
+
+Transistor: The switch behind every gate, flipped by voltage instead of fingers.
+
+Compute: A real 4-bit ripple-carry adder. Set two numbers, watch the carry ripple bit by bit. Nothing is hardcoded.
+
+Return: Back up through the gates, the core, the board, the vent. The person is still typing.
+
+Procedural 3D: Room, desk, PC, motherboard, CPU and gates are built in code with A-Frame and Three.js. Zero external 3D assets.
+
+Interactive Click and Touch Inspection: Click or tap any glowing part to open its info card.
+
+Synthesized Sound: Startup hum, room tone, ambient pad, UI clicks and gate blips, all generated live with the Web Audio API. No audio files.
+
+Quiz Mode: Five questions that test what the journey taught you, scored in the HUD.
+
+Stage Rail: Jump straight to any layer from the side rail.
+
+## Mobile and Tablet Features
+
+Touch Scrolling: Native vertical scrolling with momentum drives the camera, same as desktop.
+
+Mobile Notice: Phones see a short waiting screen suggesting a PC for the best experience, then continue.
+
+Responsive HUD: Captions, panels and the stage rail adapt to small screens.
+
+## Controls and Navigation
+
+| Action | Desktop | Mobile and Tablet |
+|---|---|---|
+| Travel | Mouse wheel or scroll | Touch scroll |
+| Select part | Click the part | Tap the part |
+| Flip gate inputs | Click | Tap |
+| Restart | EXPLORE AGAIN button | EXPLORE AGAIN button |
+| Mute | Speaker button | Speaker button |
+
+## Easter Egg
+
+Enter the Konami code anywhere on the site.
+
+## Tech Stack
+
+Framework: TanStack Start with React 19 and TypeScript
+
+3D Engine: A-Frame and Three.js
+
+Styling: Tailwind CSS
+
+Audio: Web Audio API, fully synthesized
+
+## Getting Started
+
+Prerequisites: Node.js v18 or newer, bun
+
+Clone: git clone https://github.com/p3xz/inside-the-machine.git
+
+Install: bun install
+
+Development: bun run dev
+
+Production build: bun run build
+
+## License
+
+MIT
