@@ -159,11 +159,16 @@ const Room = memo(function Room({ monitorOn }: { monitorOn: boolean }) {
       <a-box position="-0.1 1.18 39.75" width="0.8" height="0.48" depth="0.03" material={`color: #0c1015; metalness: 0.4; roughness: 0.5`} />
       <a-plane position="-0.1 1.18 39.767" width="0.75" height="0.43" material={`color: ${monitorOn ? "#16263a" : "#020304"}; shader: flat`} />
       {monitorOn ? (
-        <a-entity position="-0.45 1.34 39.769">
-          {["$ ./compile --target cpu", "  linking ............ ok", "  add r1, r2, r3", "  mov r4, r1", "  cmp r4, #8", "> _"].map((t, i) => (
-            <a-text key={i} value={t} font="sourcecodepro" color={i === 5 ? C.cyan : C.screen} width="0.9" position={`0 ${-i * 0.06} 0`} />
-          ))}
-        </a-entity>
+        <>
+          {/* browser address bar showing the author's site */}
+          <a-plane position="-0.1 1.355 39.768" width="0.75" height="0.06" material="color: #0b1220; shader: flat" />
+          <a-text value="namishhh.vercel.app" font="sourcecodepro" color={C.text} width="0.85" position="-0.44 1.345 39.77" />
+          <a-entity position="-0.45 1.27 39.769">
+            {["$ ./compile --target cpu", "  linking ............ ok", "  add r1, r2, r3", "  mov r4, r1", "  cmp r4, #8", "> _"].map((t, i) => (
+              <a-text key={i} value={t} font="sourcecodepro" color={i === 5 ? C.cyan : C.screen} width="0.9" position={`0 ${-i * 0.055} 0`} />
+            ))}
+          </a-entity>
+        </>
       ) : null}
       <a-entity light={`type: point; color: ${C.screen}; intensity: ${monitorOn ? 1.1 : 0}; distance: 3.2`} position="-0.1 1.2 40.15" />
 
