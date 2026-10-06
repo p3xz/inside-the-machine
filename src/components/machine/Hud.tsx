@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
-import { INFO, STAGES, stageAt } from "@/lib/journey-data";
-import { click, isMuted, setMuted } from "@/lib/audio";
-import type { BootPhase, GateInputs } from "./MachineScene";
+import { useEffect, useRef, useState } from "react";
+import { INFO, STAGES, stageAt, CUT_IN, CUT_OUT, INSIDE } from "@/lib/journey-data";
+import { rippleAdd, msb, toNum, type Bits, type GateKey } from "@/lib/adder";
+import { audio } from "@/lib/audio";
+import type { GateInputs } from "./MachineScene";
 
 function useProgress() {
   const [p, setP] = useState(0);
@@ -19,19 +20,19 @@ function useProgress() {
   return p;
 }
 
-const fade = (p: number, a: number, b: number, edge = 0.02) =>
+const fade = (p: number, a: number, b: number, edge = 0.012) =>
   Math.max(0, Math.min(1, (p - a) / edge, (b - p) / edge));
 
-/** short black beat when the camera passes through the case */
-const beat = (p: number) => {
-  const a = 0.322;
-  const pk = 0.335;
-  const b = 0.352;
-  if (p < a || p > b) return 0;
-  return p < pk ? (p - a) / (pk - a) : 1 - (p - pk) / (b - pk);
-};
+const black = (p: number, w: { rise: number; full: number; clear: number; done: number }) =>
+  p <= w.rise || p >= w.done ? 0 : p < w.full ? (p - w.rise) / (w.full - w.rise) : p <= w.clear ? 1 : 1 - (p - w.clear) / (w.done - w.clear);
+
+export type Phase = "off" | "boot" | "ready";
+export type Quiz = { on: boolean; n: number; score: number; target: { bit: number; gate: GateKey } | null; last: "right" | "wrong" | null };
+export type LegalTab = "privacy" | "credits" | "legal";
 
 type Props = {
+  phase: Phase;
+  onPowerOn: () => void;
   selectedId: string | null;
   onClose: () => void;
   gates: GateInputs;
@@ -40,17 +41,38 @@ type Props = {
   onToggle: (k: string) => void;
   transistorOn: boolean;
   setTransistorOn: (v: boolean) => void;
-  boot: BootPhase;
-  onPower: () => void;
-  onReset: () => void;
+  adderA: Bits;
+  adderB: Bits;
+  rippleStep: number;
+  quiz: Quiz;
+  onQuizStart: () => void;
+  onQuizAnswer: (a: string) => void;
+  onQuizExit: () => void;
+  muted: boolean;
+  onMute: () => void;
+  onRestart: () => void;
+  openLegal: (t: LegalTab) => void;
 };
+
+export const QUIZ_LEN = 5;
 
 export function Hud(props: Props) {
   const p = useProgress();
   const idx = Math.max(0, stageAt(p));
   const stage = STAGES[idx]!;
   const info = props.selectedId ? INFO[props.selectedId] : null;
-  const [soundOn, setSoundOn] = useState(() => !isMuted());
+  const ready = props.phase === "ready";
+
+  // audio arc + whoosh on cuts
+  const prev = useRef(p);
+  useEffect(() => {
+    const a = prev.current;
+    prev.current = p;
+    const inside = p > INSIDE.from && p < INSIDE.to ? 1 : 0;
+    audio.setMix(inside);
+    const crossed = (t: number) => (a < t) !== (p < t);
+    if (crossed(CUT_IN.full) || crossed(CUT_OUT.full)) audio.whoosh();
+  }, [p]);
 
   const g = props.activeGate;
   const ins = props.gates[g] as number[];
@@ -58,114 +80,92 @@ export function Hud(props: Props) {
   const i1 = ins[1] ?? 0;
   const out = g === "and" ? i0 & i1 : g === "or" ? i0 | i1 : i0 ? 0 : 1;
 
+  const add = rippleAdd(props.adderA, props.adderB);
+  const done = props.rippleStep >= 4;
+  const q = props.quiz;
+  const dark = Math.max(black(p, CUT_IN), black(p, CUT_OUT));
+
+  const go = (v: number) => {
+    const max = document.documentElement.scrollHeight - window.innerHeight;
+    window.scrollTo({ top: v * max, behavior: "smooth" });
+  };
+
   return (
     <div className="hud">
-      {/* boot overlay */}
-      {props.boot !== "on" && (
-        <div className="boot-overlay" data-state={props.boot}>
-          {props.boot === "off" && (
-            <button className="power-btn" onClick={props.onPower} aria-label="Power on">
-              <span className="power-ring" aria-hidden="true" />
-              POWER ON
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* black beat when entering the case */}
-      <div className="dive-black" style={{ opacity: beat(p) }} aria-hidden="true" />
+      {/* black beat between room and inside */}
+      <div className="blackout" style={{ opacity: dark }} />
 
       {/* top-left */}
-      {props.boot === "on" && (
-      <div className="hud-brand">
+      <div className="hud-brand" style={{ opacity: ready ? 1 : 0 }}>
         <div className="hud-title">INSIDE THE MACHINE</div>
         <div className="hud-meta">
-          COMPUTING / <span className="text-primary">{stage.num}</span>—08
+          COMPUTING / <span className="text-primary">{stage.num}</span>—{STAGES.length}
+          {q.on ? <span className="hud-quiz"> · QUIZ {String(Math.min(q.n + 1, QUIZ_LEN)).padStart(2, "0")}/{String(QUIZ_LEN).padStart(2, "0")} · SCORE {q.score}</span> : null}
         </div>
-        <button
-          className="sound-toggle"
-          onClick={() => {
-            const next = !soundOn;
-            setSoundOn(next);
-            setMuted(!next);
-            if (next) click();
-          }}
-          aria-label={soundOn ? "Mute sound" : "Unmute sound"}
-          title={soundOn ? "Mute sound" : "Unmute sound"}
-        >
-          <span className="sound-icon" data-on={soundOn}>
-            <span className="sound-waves" />
-          </span>
-          <span className="sound-label">{soundOn ? "SOUND ON" : "SOUND OFF"}</span>
-        </button>
       </div>
+
+      {ready && (
+        <button className="mute" onClick={props.onMute} aria-pressed={!props.muted} aria-label={props.muted ? "Turn sound on" : "Mute sound"}>
+          <span className="mute-bars" data-on={!props.muted}>
+            <i /><i /><i />
+          </span>
+          {props.muted ? "SOUND OFF" : "SOUND ON"}
+        </button>
       )}
 
       {/* stage rail */}
-      {props.boot === "on" && (
-      <nav className="hud-rail" aria-label="Journey stages">
-        <div className="hud-rail-line">
-          <div className="hud-rail-fill" style={{ height: `${p * 100}%` }} />
-        </div>
-        <ol>
-          {STAGES.map((s, i) => (
-            <li key={s.id} data-active={i === idx}>
-              <button
-                className="hud-rail-btn"
-                onClick={() => {
-                  click();
-                  const max = document.documentElement.scrollHeight - window.innerHeight;
-                  window.scrollTo({ top: (s.start + 0.02) * max, behavior: "smooth" });
-                }}
-              >
-                <span className="hud-rail-num">{s.num}</span>
-                <span className="hud-rail-name">{s.name}</span>
-              </button>
-            </li>
-          ))}
-        </ol>
-      </nav>
+      {ready && (
+        <nav className="hud-rail" aria-label="Journey stages">
+          <div className="hud-rail-line">
+            <div className="hud-rail-fill" style={{ height: `${p * 100}%` }} />
+          </div>
+          <ol>
+            {STAGES.map((s, i) => (
+              <li key={s.id} data-active={i === idx}>
+                <button className="hud-rail-btn" onClick={() => go(s.id === "room" ? 0 : s.start + 0.012)}>
+                  <span className="hud-rail-num">{s.num}</span>
+                  <span className="hud-rail-name">{s.name}</span>
+                </button>
+              </li>
+            ))}
+          </ol>
+        </nav>
       )}
 
-      {/* intro */}
-      {props.boot === "on" && (
-      <div className="intro" style={{ opacity: 1 - Math.min(1, p / 0.04) }}>
-        <p className="eyebrow">A JOURNEY THROUGH COMPUTATION</p>
-        <h1 className="intro-title">Inside the Machine</h1>
-        <p className="intro-sub">
-          Modern computation comes down to enormous numbers of tiny electronic switches.
-        </p>
-        <div className="scroll-cue">
-          <span>SCROLL TO ENTER</span>
-          <span className="scroll-cue-line" />
+      {/* intro over the room */}
+      {ready && p < 0.05 && (
+        <div className="intro" style={{ opacity: 1 - Math.min(1, p / 0.035) }}>
+          <h1 className="intro-title">INSIDE THE MACHINE</h1>
+          <p className="eyebrow">A JOURNEY THROUGH COMPUTATION</p>
+          <div className="scroll-cue">
+            <span>SCROLL TO ENTER</span>
+            <span className="scroll-cue-line" />
+          </div>
         </div>
-      </div>
       )}
 
       {/* stage captions */}
-      {STAGES.map((s) => {
-        const a = s.id === "room" ? 0.045 : s.id === "return" ? 0.915 : s.start + 0.01;
-        const b =
-          s.id === "transistor" ? 0.89
-          : s.id === "return" ? 0.975
-          : s.id === "room" ? 0.095
-          : s.end - 0.005;
-        const o = fade(p, a, b);
-        if (o <= 0) return null;
-        return (
-          <section key={s.id} className="caption" style={{ opacity: o, transform: `translateY(${(1 - o) * 12}px)` }}>
-            <p className="eyebrow">
-              {s.num} / {s.name}
-            </p>
-            <h2 className="caption-title">{s.title}</h2>
-            <p className="caption-sub">{s.sub}</p>
-          </section>
-        );
-      })}
+      {ready &&
+        STAGES.map((s) => {
+          if (s.id === "room") return null;
+          const a = s.id === "computer" ? 0.058 : s.start + 0.008;
+          const b = s.id === "computer" ? CUT_IN.rise : s.id === "return" ? 0.915 : s.end - 0.004;
+          const o = fade(p, a, b);
+          if (o <= 0) return null;
+          return (
+            <section key={s.id} className="caption" style={{ opacity: o, transform: `translateY(${(1 - o) * 12}px)` }}>
+              <p className="eyebrow">
+                {s.num} / {s.name}
+              </p>
+              <h2 className="caption-title">{s.title}</h2>
+              <p className="caption-sub">{s.sub}</p>
+            </section>
+          );
+        })}
 
       {/* logic console */}
-      {fade(p, 0.688, 0.80) > 0 && (
-        <div className="console" style={{ opacity: fade(p, 0.688, 0.80) }}>
+      {fade(p, 0.57, 0.648) > 0 && (
+        <div className="console" style={{ opacity: fade(p, 0.57, 0.648) }}>
           <div className="console-tabs" role="tablist">
             {(["and", "or", "not"] as const).map((k) => (
               <button key={k} role="tab" aria-selected={g === k} className="console-tab" onClick={() => props.setActiveGate(k)}>
@@ -190,22 +190,15 @@ export function Hud(props: Props) {
               <b>{out}</b>
             </div>
           </div>
-          <p className="console-eq">
-            {g === "not" ? `NOT ${ins[0]} = ${out}` : `${ins[0]} ${g.toUpperCase()} ${ins[1]} = ${out}`}
-          </p>
+          <p className="console-eq">{g === "not" ? `NOT ${ins[0]} = ${out}` : `${ins[0]} ${g.toUpperCase()} ${ins[1]} = ${out}`}</p>
         </div>
       )}
 
       {/* transistor console */}
-      {fade(p, 0.824, 0.866) > 0 && (
-        <div className="console" style={{ opacity: fade(p, 0.824, 0.866) }}>
+      {fade(p, 0.67, 0.757) > 0 && (
+        <div className="console" style={{ opacity: fade(p, 0.67, 0.757) }}>
           <p className="eyebrow">GATE VOLTAGE</p>
-          <button
-            className="switch"
-            role="switch"
-            aria-checked={props.transistorOn}
-            onClick={() => props.setTransistorOn(!props.transistorOn)}
-          >
+          <button className="switch" role="switch" aria-checked={props.transistorOn} onClick={() => props.setTransistorOn(!props.transistorOn)}>
             <span className="switch-knob" />
             <span className="switch-label">{props.transistorOn ? "ON" : "OFF"}</span>
           </button>
@@ -215,14 +208,90 @@ export function Hud(props: Props) {
         </div>
       )}
 
-      {/* ending */}
-      {p > 0.985 && props.boot === "on" && (
-        <div className="ending" style={{ opacity: Math.min(1, (p - 0.985) / 0.015) }}>
-          <p className="eyebrow">INSIDE THE MACHINE</p>
-          <p className="ending-line">The journey happened between two keystrokes.</p>
-          <button className="explore" onClick={() => { click(); props.onReset(); }}>
-            EXPLORE AGAIN ↑
+      {/* adder console */}
+      {fade(p, 0.775, 0.868) > 0 && (
+        <div className="console adder" style={{ opacity: fade(p, 0.775, 0.868) }}>
+          {(["a", "b"] as const).map((k) => {
+            const bits = k === "a" ? props.adderA : props.adderB;
+            return (
+              <div key={k} className="adder-row">
+                <span className="adder-label">INPUT {k.toUpperCase()}</span>
+                {[3, 2, 1, 0].map((i) => (
+                  <button key={i} className="abit" data-on={!!bits[i]} onClick={() => props.onToggle(`add-${k}-${i}`)} aria-label={`Toggle ${k.toUpperCase()}${i}`}>
+                    {bits[i]}
+                  </button>
+                ))}
+                <span className="adder-dec">{toNum(bits)}</span>
+              </div>
+            );
+          })}
+          <div className="adder-row adder-sum">
+            <span className="adder-label">SUM</span>
+            {[3, 2, 1, 0].map((i) => (
+              <span key={i} className="abit" data-on={done && !!add.sum[i]}>
+                {i < props.rippleStep ? add.sum[i] : "·"}
+              </span>
+            ))}
+            <span className="adder-dec">{done ? toNum(add.sum) + add.carry * 16 : "…"}</span>
+          </div>
+          <p className="console-eq">
+            CARRY OUT <span className={done && add.carry ? "text-violet" : ""}>{done ? add.carry : "·"}</span>
+            <span className="adder-bin">
+              {msb(props.adderA)} + {msb(props.adderB)} = {done ? `${add.carry}${msb(add.sum)}` : "…"}
+            </span>
+          </p>
+
+          <div className="quiz">
+            {!q.on ? (
+              <button className="quiz-start" onClick={props.onQuizStart}>
+                QUIZ MODE →
+              </button>
+            ) : q.n >= QUIZ_LEN ? (
+              <div className="quiz-done">
+                <p>
+                  QUIZ COMPLETE · {q.score}/{QUIZ_LEN}
+                </p>
+                <button className="quiz-start" onClick={props.onQuizStart}>
+                  AGAIN
+                </button>
+                <button className="quiz-start" onClick={props.onQuizExit}>
+                  EXIT
+                </button>
+              </div>
+            ) : q.target ? (
+              <>
+                <p className="quiz-q">
+                  WHICH GATE JUST FIRED? <span className="quiz-hint">(FLASHING · BIT {q.target.bit})</span>
+                </p>
+                <div className="quiz-answers">
+                  {["AND", "OR", "XOR", "NOT"].map((a) => (
+                    <button key={a} className="console-tab" onClick={() => props.onQuizAnswer(a)}>
+                      {a}
+                    </button>
+                  ))}
+                </div>
+                {q.last && <p className={`quiz-fb ${q.last}`}>{q.last === "right" ? "CORRECT" : "NOT QUITE"}</p>}
+              </>
+            ) : (
+              <p className="quiz-q">SET A BIT TO 1 TO MAKE A GATE FIRE</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ending: back in the room */}
+      {p > 0.968 && (
+        <div className="ending" style={{ opacity: Math.min(1, (p - 0.968) / 0.02) }}>
+          <p className="ending-line">THE JOURNEY HAPPENED BETWEEN TWO KEYSTROKES.</p>
+          <button className="explore" onClick={props.onRestart}>
+            EXPLORE AGAIN
           </button>
+          <nav className="legal-links" aria-label="Legal">
+            <button onClick={() => props.openLegal("privacy")}>PRIVACY</button>
+            <button onClick={() => props.openLegal("credits")}>CREDITS</button>
+            <button onClick={() => props.openLegal("legal")}>LEGAL</button>
+          </nav>
+          <p className="ending-note">An educational visualization. Some hardware details are simplified.</p>
         </div>
       )}
 
@@ -236,6 +305,43 @@ export function Hud(props: Props) {
             CLOSE
           </button>
         </aside>
+      )}
+
+      {/* boot sequence */}
+      {props.phase !== "ready" && <Boot phase={props.phase} onPowerOn={props.onPowerOn} openLegal={props.openLegal} />}
+    </div>
+  );
+}
+
+const BOOT_LOG = ["POST ........ OK", "CPU  0x01 ... OK", "MEM  32768 MB OK", "DISPLAY ..... ON"];
+
+function Boot({ phase, onPowerOn, openLegal }: { phase: Phase; onPowerOn: () => void; openLegal: (t: LegalTab) => void }) {
+  const [lines, setLines] = useState(0);
+  useEffect(() => {
+    if (phase !== "boot") return;
+    const ids = BOOT_LOG.map((_, i) => window.setTimeout(() => setLines(i + 1), 160 + i * 190));
+    return () => ids.forEach(clearTimeout);
+  }, [phase]);
+  return (
+    <div className="boot" data-phase={phase}>
+      {phase === "off" ? (
+        <div className="boot-center">
+          <p className="eyebrow">INSIDE THE MACHINE</p>
+          <button className="power" onClick={onPowerOn} autoFocus>
+            <span className="power-icon" aria-hidden="true" />
+            POWER ON
+          </button>
+          <p className="boot-hint">BEST WITH SOUND · SCROLL TO TRAVEL</p>
+        </div>
+      ) : (
+        <pre className="boot-log" aria-live="polite">{BOOT_LOG.slice(0, lines).join("\n")}</pre>
+      )}
+      {phase === "off" && (
+        <nav className="legal-links boot-legal" aria-label="Legal">
+          <button onClick={() => openLegal("privacy")}>PRIVACY</button>
+          <button onClick={() => openLegal("credits")}>CREDITS</button>
+          <button onClick={() => openLegal("legal")}>LEGAL</button>
+        </nav>
       )}
     </div>
   );

@@ -1,349 +1,187 @@
-// Tiny synthesized audio engine: soft UI clicks and a peaceful ambient pad.
-// Everything is generated with the Web Audio API. No audio assets.
+/* Procedural audio: everything is synthesised in the browser, no audio files. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Any = any;
 
-let ctx: AudioContext | null = null;
-let muted = false;
-let ambientNodes: { stop: () => void } | null = null;
-
-try {
-  muted = localStorage.getItem("itm-muted") === "1";
-} catch {
+class Engine {
+  ctx: AudioContext | null = null;
+  master: GainNode | null = null;
+  room: GainNode | null = null;
+  pad: GainNode | null = null;
+  noise: AudioBuffer | null = null;
   muted = false;
-}
+  inside = 0;
+  typingTimer = 0;
 
-function ac(): AudioContext | null {
-  try {
-    if (!ctx) {
-      const AC =
-        window.AudioContext ||
-        (window as unknown as { webkitAudioContext: typeof AudioContext })
-          .webkitAudioContext;
-      ctx = new AC();
+  init() {
+    if (this.ctx) {
+      void this.ctx.resume();
+      return;
     }
-    if (ctx.state === "suspended") void ctx.resume();
-    return ctx;
-  } catch {
-    return null;
-  }
-}
+    const AC = window.AudioContext || (window as Any).webkitAudioContext;
+    if (!AC) return;
+    try {
+      const ctx: AudioContext = new AC();
+      this.ctx = ctx;
+      const master = ctx.createGain();
+      master.gain.value = this.muted ? 0 : 0.8;
+      master.connect(ctx.destination);
+      this.master = master;
 
-export function isMuted(): boolean {
-  return muted;
-}
-
-export function setMuted(m: boolean): void {
-  muted = m;
-  try {
-    localStorage.setItem("itm-muted", m ? "1" : "0");
-  } catch {
-    // ignore
-  }
-  if (m) {
-    stopAmbient();
-    stopRoomTone();
-    lastZone = "muted";
-  } else {
-    lastZone = null; // next setAudioZone call re-applies the current zone
-  }
-}
-
-function blip(
-  freq: number,
-  dur: number,
-  type: OscillatorType,
-  gain: number,
-  when = 0,
-  slideTo?: number
-): void {
-  const c = ac();
-  if (!c || muted) return;
-  const t = c.currentTime + when;
-  const o = c.createOscillator();
-  const g = c.createGain();
-  o.type = type;
-  o.frequency.setValueAtTime(freq, t);
-  if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t + dur);
-  g.gain.setValueAtTime(0.0001, t);
-  g.gain.exponentialRampToValueAtTime(gain, t + 0.012);
-  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  o.connect(g);
-  g.connect(c.destination);
-  o.start(t);
-  o.stop(t + dur + 0.05);
-}
-
-/** Soft UI click for buttons and rail navigation. */
-export function click(): void {
-  blip(620, 0.07, "triangle", 0.06);
-}
-
-/** Bit toggle: higher pitch when turning on, lower when turning off. */
-export function bitToggle(on: boolean): void {
-  blip(on ? 740 : 520, 0.09, "triangle", 0.07);
-  blip(on ? 1108 : 780, 0.12, "sine", 0.04, 0.03);
-}
-
-/** Gentle two-note chime when selecting a 3D part. */
-export function select(): void {
-  blip(523.25, 0.16, "sine", 0.05);
-  blip(783.99, 0.22, "sine", 0.05, 0.09);
-}
-
-/** Soft power sweep for the transistor switch. */
-export function power(on: boolean): void {
-  if (on) {
-    blip(220, 0.22, "sine", 0.07, 0, 660);
-    blip(880, 0.18, "sine", 0.035, 0.14);
-  } else {
-    blip(660, 0.22, "sine", 0.06, 0, 220);
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Peaceful ambient pad: slow evolving chords, very quiet.
-// Cmaj9 -> Am9 -> Fmaj9 -> G6/9, each held ~9s with soft crossfades.
-// ---------------------------------------------------------------------------
-
-const CHORDS: number[][] = [
-  [130.81, 164.81, 196.0, 246.94, 293.66], // Cmaj9
-  [110.0, 130.81, 164.81, 196.0, 246.94], // Am9
-  [87.31, 130.81, 174.61, 220.0, 261.63], // Fmaj9
-  [98.0, 146.83, 196.0, 220.0, 293.66], // G6/9
-];
-
-export function startAmbient(): void {
-  if (muted || ambientNodes) return;
-  const c = ac();
-  if (!c) return;
-
-  const master = c.createGain();
-  master.gain.setValueAtTime(0.0001, c.currentTime);
-  master.gain.exponentialRampToValueAtTime(0.05, c.currentTime + 4);
-  const filter = c.createBiquadFilter();
-  filter.type = "lowpass";
-  filter.frequency.setValueAtTime(900, c.currentTime);
-  filter.Q.setValueAtTime(0.4, c.currentTime);
-  master.connect(filter);
-  filter.connect(c.destination);
-
-  // Slow breathing on the filter for an evolving feel.
-  const lfo = c.createOscillator();
-  lfo.frequency.setValueAtTime(0.06, c.currentTime);
-  const lfoGain = c.createGain();
-  lfoGain.gain.setValueAtTime(350, c.currentTime);
-  lfo.connect(lfoGain);
-  lfoGain.connect(filter.frequency);
-  lfo.start();
-
-  const oscs: OscillatorNode[] = [];
-  const gains: GainNode[] = [];
-  let chordIdx = 0;
-  let timer: ReturnType<typeof setInterval> | null = null;
-
-  const playChord = (notes: number[]) => {
-    const t = c.currentTime;
-    // fade out previous
-    for (const g of gains) {
-      g.gain.cancelScheduledValues(t);
-      g.gain.setValueAtTime(g.gain.value, t);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + 3);
-    }
-    const old = oscs.splice(0);
-    gains.splice(0);
-    setTimeout(() => old.forEach((o) => { try { o.stop(); } catch { /* noop */ } }), 3500);
-    // fade in new
-    for (const f of notes) {
-      const o = c.createOscillator();
-      o.type = "sine";
-      o.frequency.setValueAtTime(f * (1 + (Math.random() - 0.5) * 0.0015), t);
-      const g = c.createGain();
-      g.gain.setValueAtTime(0.0001, t);
-      g.gain.exponentialRampToValueAtTime(0.16, t + 3.5);
-      o.connect(g);
-      g.connect(master);
-      o.start(t);
-      oscs.push(o);
-      gains.push(g);
-    }
-  };
-
-  playChord(CHORDS[0]!);
-  timer = setInterval(() => {
-    chordIdx = (chordIdx + 1) % CHORDS.length;
-    playChord(CHORDS[chordIdx]!);
-  }, 9000);
-
-  ambientNodes = {
-    stop: () => {
-      if (timer) clearInterval(timer);
-      try { lfo.stop(); } catch { /* noop */ }
-      for (const o of oscs) { try { o.stop(); } catch { /* noop */ } }
-      try { master.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + 0.6); } catch { /* noop */ }
-    },
-  };
-}
-
-export function stopAmbient(): void {
-  ambientNodes?.stop();
-  ambientNodes = null;
-}
-
-/** Call once from a user gesture; browsers block audio before interaction. */
-export function unlockAudio(): void {
-  const c = ac();
-  if (!c) return;
-  const start = () => {
-    if (!muted) startAmbient();
-    window.removeEventListener("pointerdown", start);
-    window.removeEventListener("keydown", start);
-  };
-  if (c.state === "running" && !muted) startAmbient();
-  else {
-    window.addEventListener("pointerdown", start, { once: false });
-    window.addEventListener("keydown", start, { once: false });
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Room > machine audio arc: room tone, startup blip, case whoosh, zone switch.
-// ---------------------------------------------------------------------------
-
-let noiseBuf: AudioBuffer | null = null;
-function noiseBuffer(c: AudioContext): AudioBuffer {
-  if (!noiseBuf) {
-    const len = c.sampleRate * 2;
-    noiseBuf = c.createBuffer(1, len, c.sampleRate);
-    const d = noiseBuf.getChannelData(0);
-    let last = 0;
-    for (let i = 0; i < len; i++) {
-      const w = Math.random() * 2 - 1;
-      last = (last + 0.02 * w) / 1.02;
-      d[i] = last * 3.2;
-    }
-  }
-  return noiseBuf;
-}
-
-let roomNodes: { stop: () => void } | null = null;
-
-/** Very quiet lab hum and air for the room. */
-export function startRoomTone(): void {
-  if (muted || roomNodes) return;
-  const c = ac();
-  if (!c) return;
-  const t = c.currentTime;
-  const src = c.createBufferSource();
-  src.buffer = noiseBuffer(c);
-  src.loop = true;
-  const lp = c.createBiquadFilter();
-  lp.type = "lowpass";
-  lp.frequency.setValueAtTime(320, t);
-  const g = c.createGain();
-  g.gain.setValueAtTime(0.0001, t);
-  g.gain.exponentialRampToValueAtTime(0.022, t + 2.5);
-  const hum = c.createOscillator();
-  hum.type = "sine";
-  hum.frequency.setValueAtTime(54, t);
-  const hg = c.createGain();
-  hg.gain.setValueAtTime(0.0001, t);
-  hg.gain.exponentialRampToValueAtTime(0.006, t + 2.5);
-  src.connect(lp);
-  lp.connect(g);
-  g.connect(c.destination);
-  hum.connect(hg);
-  hg.connect(c.destination);
-  src.start(t);
-  hum.start(t);
-  roomNodes = {
-    stop: () => {
-      const n = c.currentTime;
-      try {
-        g.gain.cancelScheduledValues(n);
-        g.gain.setValueAtTime(Math.max(0.0001, g.gain.value), n);
-        g.gain.exponentialRampToValueAtTime(0.0001, n + 0.8);
-        hg.gain.cancelScheduledValues(n);
-        hg.gain.setValueAtTime(Math.max(0.0001, hg.gain.value), n);
-        hg.gain.exponentialRampToValueAtTime(0.0001, n + 0.8);
-      } catch {
-        /* noop */
+      // brown noise buffer
+      const len = ctx.sampleRate * 3;
+      const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+      const d = buf.getChannelData(0);
+      let last = 0;
+      for (let i = 0; i < len; i++) {
+        last = (last + 0.02 * (Math.random() * 2 - 1)) / 1.02;
+        d[i] = last * 3.5;
       }
-      setTimeout(() => {
-        try {
-          src.stop();
-          hum.stop();
-        } catch {
-          /* noop */
-        }
-      }, 1000);
-    },
-  };
-}
+      this.noise = buf;
 
-export function stopRoomTone(): void {
-  roomNodes?.stop();
-  roomNodes = null;
-}
+      // room tone
+      const rs = ctx.createBufferSource();
+      rs.buffer = buf;
+      rs.loop = true;
+      const rf = ctx.createBiquadFilter();
+      rf.type = "lowpass";
+      rf.frequency.value = 380;
+      const rg = ctx.createGain();
+      rg.gain.value = 0;
+      rs.connect(rf).connect(rg).connect(master);
+      rs.start();
+      this.room = rg;
 
-/** Soft power-on: low sweep up plus a monitor tick. */
-export function startup(): void {
-  blip(150, 0.55, "sine", 0.09, 0, 520);
-  blip(1040, 0.25, "sine", 0.03, 0.4);
-  blip(880, 0.09, "triangle", 0.05, 0.85);
-}
+      // ambient electronic pad
+      const pf = ctx.createBiquadFilter();
+      pf.type = "lowpass";
+      pf.frequency.value = 700;
+      pf.Q.value = 3;
+      const lfo = ctx.createOscillator();
+      lfo.frequency.value = 0.07;
+      const lg = ctx.createGain();
+      lg.gain.value = 320;
+      lfo.connect(lg).connect(pf.frequency);
+      lfo.start();
+      const pg = ctx.createGain();
+      pg.gain.value = 0;
+      [110, 110.6, 164.8, 220.4, 329.2].forEach((f, i) => {
+        const o = ctx.createOscillator();
+        o.type = i % 2 ? "sawtooth" : "triangle";
+        o.frequency.value = f;
+        const g = ctx.createGain();
+        g.gain.value = i % 2 ? 0.08 : 0.25;
+        o.connect(g).connect(pf);
+        o.start();
+      });
+      pf.connect(pg).connect(master);
+      this.pad = pg;
 
-/** Air rush for passing through the case. */
-export function whoosh(): void {
-  const c = ac();
-  if (!c || muted) return;
-  const t = c.currentTime;
-  const src = c.createBufferSource();
-  src.buffer = noiseBuffer(c);
-  src.loop = true;
-  const bp = c.createBiquadFilter();
-  bp.type = "bandpass";
-  bp.Q.setValueAtTime(1.1, t);
-  bp.frequency.setValueAtTime(380, t);
-  bp.frequency.exponentialRampToValueAtTime(2600, t + 0.45);
-  bp.frequency.exponentialRampToValueAtTime(420, t + 0.95);
-  const g = c.createGain();
-  g.gain.setValueAtTime(0.0001, t);
-  g.gain.exponentialRampToValueAtTime(0.16, t + 0.4);
-  g.gain.exponentialRampToValueAtTime(0.0001, t + 1.0);
-  src.connect(bp);
-  bp.connect(g);
-  g.connect(c.destination);
-  src.start(t);
-  src.stop(t + 1.1);
-}
-
-export type AudioZone = "room" | "inside" | "silent";
-let lastZone: AudioZone | "muted" | null = null;
-
-/** Switch the soundscape by journey zone. Call every frame; no-op when unchanged. */
-export function setAudioZone(zone: AudioZone): void {
-  const key = (muted ? "muted" : zone) as AudioZone | "muted";
-  if (key === lastZone) return;
-  lastZone = key;
-  if (muted) {
-    stopAmbient();
-    stopRoomTone();
-    return;
+      this.scheduleTyping();
+      this.setMix(this.inside);
+    } catch {
+      this.ctx = null;
+    }
   }
-  if (zone === "room") {
-    stopAmbient();
-    startRoomTone();
-  } else if (zone === "inside") {
-    stopRoomTone();
-    startAmbient();
-  } else {
-    stopAmbient();
-    stopRoomTone();
+
+  private scheduleTyping() {
+    const tick = () => {
+      const ctx = this.ctx;
+      if (ctx && this.noise && this.inside < 0.5 && ctx.state === "running") {
+        const s = ctx.createBufferSource();
+        s.buffer = this.noise;
+        const f = ctx.createBiquadFilter();
+        f.type = "bandpass";
+        f.frequency.value = 2200 + Math.random() * 1800;
+        f.Q.value = 4;
+        const g = ctx.createGain();
+        const t = ctx.currentTime;
+        const v = 0.25 * (1 - this.inside * 2);
+        g.gain.setValueAtTime(v, t);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.04);
+        s.connect(f).connect(g).connect(this.master!);
+        s.start(t, Math.random() * 2, 0.05);
+      }
+      const pause = Math.random() < 0.08 ? 900 + Math.random() * 1400 : 80 + Math.random() * 190;
+      this.typingTimer = window.setTimeout(tick, pause);
+    };
+    tick();
+  }
+
+  /** 0 = room, 1 = inside the computer */
+  setMix(inside: number) {
+    this.inside = inside;
+    const ctx = this.ctx;
+    if (!ctx || !this.room || !this.pad) return;
+    this.room.gain.setTargetAtTime((1 - inside) * 0.22, ctx.currentTime, 0.4);
+    this.pad.gain.setTargetAtTime(inside * 0.1, ctx.currentTime, 0.6);
+  }
+
+  whoosh() {
+    const ctx = this.ctx;
+    if (!ctx || !this.noise || !this.master) return;
+    const t = ctx.currentTime;
+    const s = ctx.createBufferSource();
+    s.buffer = this.noise;
+    const f = ctx.createBiquadFilter();
+    f.type = "bandpass";
+    f.Q.value = 1.4;
+    f.frequency.setValueAtTime(260, t);
+    f.frequency.exponentialRampToValueAtTime(2600, t + 0.45);
+    f.frequency.exponentialRampToValueAtTime(320, t + 1.1);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(1.6, t + 0.35);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 1.15);
+    s.connect(f).connect(g).connect(this.master);
+    s.start(t, 0, 1.2);
+  }
+
+  startup() {
+    const ctx = this.ctx;
+    if (!ctx || !this.master || !this.noise) return;
+    const t = ctx.currentTime;
+    // rising hum
+    const o = ctx.createOscillator();
+    o.frequency.setValueAtTime(55, t);
+    o.frequency.exponentialRampToValueAtTime(120, t + 1.4);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.22, t + 0.15);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 2);
+    o.connect(g).connect(this.master);
+    o.start(t);
+    o.stop(t + 2.1);
+    // fan spin-up
+    const s = ctx.createBufferSource();
+    s.buffer = this.noise;
+    const f = ctx.createBiquadFilter();
+    f.type = "lowpass";
+    f.frequency.setValueAtTime(150, t);
+    f.frequency.exponentialRampToValueAtTime(900, t + 1.6);
+    const fg = ctx.createGain();
+    fg.gain.setValueAtTime(0.0001, t);
+    fg.gain.exponentialRampToValueAtTime(0.5, t + 1.2);
+    fg.gain.exponentialRampToValueAtTime(0.0001, t + 2.6);
+    s.connect(f).connect(fg).connect(this.master);
+    s.start(t, 0, 2.7);
+    // short POST beep
+    const b = ctx.createOscillator();
+    b.type = "square";
+    b.frequency.value = 1046;
+    const bg = ctx.createGain();
+    bg.gain.setValueAtTime(0.0001, t + 0.9);
+    bg.gain.exponentialRampToValueAtTime(0.05, t + 0.92);
+    bg.gain.exponentialRampToValueAtTime(0.0001, t + 1.05);
+    b.connect(bg).connect(this.master);
+    b.start(t + 0.9);
+    b.stop(t + 1.1);
+  }
+
+  setMuted(m: boolean) {
+    this.muted = m;
+    const ctx = this.ctx;
+    if (ctx && this.master) this.master.gain.setTargetAtTime(m ? 0 : 0.8, ctx.currentTime, 0.1);
   }
 }
 
-/** Silence everything immediately. */
-export function stopAll(): void {
-  stopAmbient();
-  stopRoomTone();
-  lastZone = null;
-}
+export const audio = new Engine();

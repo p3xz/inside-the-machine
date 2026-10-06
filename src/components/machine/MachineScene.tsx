@@ -1,5 +1,6 @@
 import { memo, useEffect, useRef, useState } from "react";
-import { INFO, KEYFRAMES } from "@/lib/journey-data";
+import { INFO, KEYFRAMES, CUT_OUT } from "@/lib/journey-data";
+import { rippleAdd, msb, toNum, type Bits, type GateKey } from "@/lib/adder";
 
 /* 3D palette (scene-only; mirrors design tokens) */
 const C = {
@@ -12,11 +13,13 @@ const C = {
   dim: "#1E2A36",
   text: "#F5F7FA",
   muted: "#8B98A7",
+  room: "#0b0e12",
+  skin: "#3a434e",
+  cloth: "#1f262f",
+  screen: "#9fc7ff",
 };
 
 export type GateInputs = { and: [number, number]; or: [number, number]; not: [number] };
-
-export type BootPhase = "off" | "starting" | "on";
 
 type Props = {
   selectedId: string | null;
@@ -24,7 +27,11 @@ type Props = {
   onToggle: (key: string) => void;
   gates: GateInputs;
   transistorOn: boolean;
-  bootPhase: BootPhase;
+  monitorOn: boolean;
+  adderA: Bits;
+  adderB: Bits;
+  rippleStep: number;
+  quizTarget: { bit: number; gate: GateKey } | null;
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -90,7 +97,117 @@ const Pulse = ({ from, to, dur = 2200, delay = 0, color = C.cyan, r = 0.025 }: {
 
 const wire = (on: boolean) => (on ? C.cyan : C.dim);
 
-function SceneInner({ selectedId, onSelect, onToggle, gates, transistorOn, bootPhase }: Props) {
+/** adder gate: neutral clickable body + a lit front plate (so hover styling never clobbers the logic state) */
+const GateBox = ({ x, y, label, id, on, pend, hl }: { x: number; y: number; label: string; id: string; on: boolean; pend: boolean; hl: boolean }) => (
+  <a-entity position={`${x} ${y} 0`}>
+    <a-box className="clickable" data-id={id} width="0.78" height="0.46" depth="0.24" material={`color: ${C.chip}; metalness: 0.4; roughness: 0.35`} />
+    <a-plane position="0 0 0.125" width="0.7" height="0.38" material={`color: ${on ? "#0e4450" : pend ? "#10161d" : "#141c25"}; shader: flat`} />
+    <a-text value={label} font="sourcecodepro" color={on ? C.cyan : pend ? C.dim : C.muted} width="2.4" align="center" position="0 0.03 0.13" />
+    <a-text value={pend ? "·" : on ? "1" : "0"} font="sourcecodepro" color={on ? C.cyan : C.muted} width="1.4" align="center" position="0 -0.12 0.13" />
+    {hl ? (
+      <a-box width="0.98" height="0.66" depth="0.3" material={`color: ${C.violet}; wireframe: true; shader: flat; transparent: true; opacity: 1`} animation="property: material.opacity; from: 1; to: 0.15; dir: alternate; loop: true; dur: 420" />
+    ) : null}
+  </a-entity>
+);
+
+const mat = (color: string, extra = "") => `color: ${color}; roughness: 0.85; metalness: 0.05${extra ? "; " + extra : ""}`;
+
+/** Dark lab at night: desk, tower, monitor, keyboard and a low-poly person typing. */
+const Room = memo(function Room({ monitorOn }: { monitorOn: boolean }) {
+  return (
+    <a-entity>
+      {/* shell */}
+      <a-plane position="0 0 42" rotation="-90 0 0" width="10" height="14" material={mat("#0a0d11")} />
+      <a-plane position="0 3 42" rotation="90 0 0" width="10" height="14" material={mat("#07090c")} />
+      <a-plane position="0 1.5 36" width="10" height="3" material={mat(C.room)} />
+      <a-plane position="-5 1.5 42" rotation="0 90 0" width="14" height="3" material={mat(C.room)} />
+      <a-plane position="5 1.5 42" rotation="0 -90 0" width="14" height="3" material={mat(C.room)} />
+      {/* night window */}
+      <a-plane position="-2.4 1.85 36.02" width="1.6" height="1.1" material="color: #142231; shader: flat" />
+      <a-box position="-2.4 1.85 36.03" width="0.03" height="1.1" depth="0.02" material={mat("#05070a")} />
+      <a-box position="-2.4 1.85 36.03" width="1.6" height="0.03" depth="0.02" material={mat("#05070a")} />
+      <a-entity light="type: point; color: #4d6a8c; intensity: 0.35; distance: 6" position="-2.4 1.8 37" />
+      {/* shelf + books */}
+      <a-box position="2.6 1.9 36.15" width="1.6" height="0.04" depth="0.3" material={mat("#151a20")} />
+      {[0, 1, 2, 3, 4].map((i) => (
+        <a-box key={i} position={`${2.05 + i * 0.12} 2.04 36.15`} width="0.08" height={`${0.22 + (i % 3) * 0.03}`} depth="0.22" material={mat(["#1b2530", "#22201c", "#1a1f2a"][i % 3]!)} />
+      ))}
+
+      {/* desk */}
+      <a-box position="0.1 0.75 40" width="1.9" height="0.05" depth="0.8" material={mat("#161b21", "metalness: 0.2")} />
+      {[
+        [-0.8, 39.65],
+        [1.0, 39.65],
+        [-0.8, 40.35],
+        [1.0, 40.35],
+      ].map(([x, z], i) => (
+        <a-box key={i} position={`${x} 0.36 ${z}`} width="0.05" height="0.72" depth="0.05" material={mat("#0e1216")} />
+      ))}
+
+      {/* PC tower — the visual focus */}
+      <a-box position="0.95 1.03 40" width="0.26" height="0.5" depth="0.5" material={`color: #121820; metalness: 0.65; roughness: 0.35`} />
+      <a-plane position="0.95 0.98 40.252" width="0.2" height="0.3" material={`color: ${C.cyan}; shader: flat; transparent: true; opacity: 0.12`} />
+      {[0, 1, 2, 3, 4, 5, 6].map((i) => (
+        <a-box key={i} position={`0.95 ${0.85 + i * 0.043} 40.255`} width="0.2" height="0.018" depth="0.008" material="color: #05070a" />
+      ))}
+      <a-sphere position="0.95 1.23 40.255" radius="0.009" material={`color: ${C.cyan}; shader: flat`} animation="property: material.opacity; from: 1; to: 0.3; dir: alternate; loop: true; dur: 1400" />
+      <a-entity light={`type: point; color: ${C.cyan}; intensity: 0.25; distance: 1.2`} position="0.95 0.98 40.45" />
+
+      {/* monitor */}
+      <a-box position="-0.1 0.8 39.78" width="0.22" height="0.02" depth="0.16" material={mat("#151a20")} />
+      <a-box position="-0.1 0.92 39.76" width="0.04" height="0.24" depth="0.03" material={mat("#151a20")} />
+      <a-box position="-0.1 1.18 39.75" width="0.8" height="0.48" depth="0.03" material={`color: #0c1015; metalness: 0.4; roughness: 0.5`} />
+      <a-plane position="-0.1 1.18 39.767" width="0.75" height="0.43" material={`color: ${monitorOn ? "#16263a" : "#020304"}; shader: flat`} />
+      {monitorOn ? (
+        <a-entity position="-0.45 1.34 39.769">
+          {["$ ./compile --target cpu", "  linking ............ ok", "  add r1, r2, r3", "  mov r4, r1", "  cmp r4, #8", "> _"].map((t, i) => (
+            <a-text key={i} value={t} font="sourcecodepro" color={i === 5 ? C.cyan : C.screen} width="0.9" position={`0 ${-i * 0.06} 0`} />
+          ))}
+        </a-entity>
+      ) : null}
+      <a-entity light={`type: point; color: ${C.screen}; intensity: ${monitorOn ? 1.1 : 0}; distance: 3.2`} position="-0.1 1.2 40.15" />
+
+      {/* keyboard, mouse, mug */}
+      <a-box position="-0.1 0.785 40.22" width="0.5" height="0.02" depth="0.15" material={mat("#1a2028")} />
+      <a-box position="-0.1 0.797 40.22" width="0.46" height="0.006" depth="0.12" material={`color: #2a3440; shader: flat; transparent: true; opacity: 0.8`} />
+      <a-box position="0.33 0.785 40.23" width="0.06" height="0.025" depth="0.1" material={mat("#1a2028")} />
+      <a-cylinder position="-0.75 0.82 39.9" radius="0.04" height="0.1" segments-radial="10" material={mat("#262d36")} />
+
+      {/* chair */}
+      <a-box position="-0.1 0.45 41.05" width="0.48" height="0.06" depth="0.45" material={mat("#101418")} />
+      <a-box position="-0.1 0.82 41.3" width="0.46" height="0.6" depth="0.05" rotation="8 0 0" material={mat("#101418")} />
+      <a-cylinder position="-0.1 0.22 41.05" radius="0.03" height="0.42" material={mat("#0b0e11")} />
+
+      {/* person: legs */}
+      {[-0.2, 0.0].map((x) => (
+        <a-entity key={x}>
+          <a-box position={`${x} 0.53 40.82`} width="0.15" height="0.14" depth="0.45" material={mat(C.cloth)} />
+          <a-box position={`${x} 0.27 40.6`} width="0.12" height="0.48" depth="0.13" material={mat(C.cloth)} />
+        </a-entity>
+      ))}
+      {/* upper body pivots at the hips: slow breathing sway */}
+      <a-entity position="-0.1 0.55 41.0" rotation="-7 0 0" animation="property: rotation; from: -7 0 0; to: -4 0 1; dir: alternate; loop: true; dur: 2600; easing: easeInOutSine">
+        <a-box position="0 0.3 0" width="0.4" height="0.56" depth="0.22" material={mat(C.cloth)} />
+        <a-cylinder position="0 0.6 -0.02" radius="0.05" height="0.08" segments-radial="6" material={mat(C.skin)} />
+        <a-entity position="0 0.74 -0.03" animation="property: rotation; from: 4 -7 0; to: 8 6 0; dir: alternate; loop: true; dur: 6800; easing: easeInOutSine">
+          <a-sphere radius="0.12" segments-width="7" segments-height="5" material={mat(C.skin, "flatShading: true")} />
+          <a-sphere position="0 0.03 0.02" radius="0.125" segments-width="7" segments-height="5" theta-length="70" material={mat("#151a20", "flatShading: true")} />
+        </a-entity>
+        {[-1, 1].map((s) => (
+          <a-entity key={s}>
+            <a-box position={`${s * 0.24} 0.37 -0.11`} rotation="49 0 0" width="0.1" height="0.32" depth="0.1" material={mat(C.cloth)} />
+            <a-entity position={`${s * 0.22} 0.25 -0.22`} animation={`property: rotation; from: -5 0 0; to: 5 ${s * 3} 0; dir: alternate; loop: true; dur: ${s > 0 ? 150 : 190}; easing: easeInOutSine`}>
+              <a-box position="0 0 -0.2" width="0.08" height="0.08" depth="0.4" material={mat(C.cloth)} />
+              <a-box position={`${-s * 0.02} -0.01 -0.43`} width="0.08" height="0.04" depth="0.08" material={mat(C.skin)} />
+            </a-entity>
+          </a-entity>
+        ))}
+      </a-entity>
+    </a-entity>
+  );
+});
+
+function SceneInner({ selectedId, onSelect, onToggle, gates, transistorOn, monitorOn, adderA, adderB, rippleStep, quizTarget }: Props) {
   const sceneRef = useRef<Any>(null);
   const camRef = useRef<Any>(null);
   const cb = useRef({ onSelect, onToggle });
@@ -123,8 +240,14 @@ function SceneInner({ selectedId, onSelect, onToggle, gates, transistorOn, bootP
       tp.set(s.pos[0]!, s.pos[1]!, s.pos[2]!);
       tl.set(s.look[0]!, s.look[1]!, s.look[2]!);
       const k = reduce ? 1 : 1 - Math.exp(-5 * dt);
-      pos.lerp(tp, k);
-      look.lerp(tl, k);
+      // camera cuts (room <-> inside) happen under a black screen: snap instead of flying through walls
+      if (pos.distanceTo(tp) > 6) {
+        pos.copy(tp);
+        look.copy(tl);
+      } else {
+        pos.lerp(tp, k);
+        look.lerp(tl, k);
+      }
       const cam = camRef.current?.object3D;
       if (cam) {
         cam.position.copy(pos);
@@ -133,18 +256,9 @@ function SceneInner({ selectedId, onSelect, onToggle, gates, transistorOn, bootP
       }
       const fog = sceneRef.current?.object3D?.fog;
       if (fog) {
-        let near = 2;
-        let far = 22;
-        if (p > 0.87 && p < 0.93) {
-          const f = ease((p - 0.87) / 0.06);
-          far = 22 + f * 110;
-          near = 2 + f * 20;
-        } else if (p >= 0.93) {
-          far = 36;
-          near = 2;
-        }
-        fog.far = far;
-        fog.near = near;
+        const f = p > 0.86 && p < CUT_OUT.clear ? Math.min(1, (p - 0.86) / 0.06) : 0;
+        fog.far = 22 + ease(f) * 110;
+        fog.near = 2 + ease(f) * 20;
       }
       if (token) {
         const t = (now % 4200) / 4200;
@@ -229,7 +343,8 @@ function SceneInner({ selectedId, onSelect, onToggle, gates, transistorOn, bootP
   const andOut = gates.and[0] & gates.and[1];
   const orOut = gates.or[0] | gates.or[1];
   const notOut = gates.not[0] ? 0 : 1;
-  const monitorOn = bootPhase !== "off";
+  const add = rippleAdd(adderA, adderB);
+  const allDone = rippleStep >= 4;
 
   return (
     <a-scene
@@ -244,51 +359,15 @@ function SceneInner({ selectedId, onSelect, onToggle, gates, transistorOn, bootP
       cursor="rayOrigin: mouse; fuse: false"
       raycaster="objects: .clickable; far: 40"
     >
-      <a-entity ref={camRef} camera="fov: 55; near: 0.05; far: 200" look-controls="enabled: false" wasd-controls="enabled: false" />
+      <a-entity ref={camRef} camera="fov: 55; near: 0.02; far: 200" look-controls="enabled: false" wasd-controls="enabled: false" />
 
-      <a-entity light="type: ambient; color: #6b7c8f; intensity: 0.55" />
-      <a-entity light="type: directional; color: #cfe9ff; intensity: 0.9" position="4 8 10" />
+      <a-entity light="type: ambient; color: #6b7c8f; intensity: 0.45" />
+      <a-entity light="type: directional; color: #cfe9ff; intensity: 0.8" position="4 8 -10" />
       <a-entity light={`type: point; color: ${C.cyan}; intensity: 1.4; distance: 9`} position="0 2 2" />
       <a-entity starfield />
 
-      {/* ============ 00 ROOM : quiet lab at night ============ */}
-      <a-plane position="0 0 10" rotation="-90 0 0" width="70" height="50" material="color: #07090c; roughness: 1" />
-      <a-plane position="0 0.01 10" rotation="-90 0 0" width="70" height="50" geometry="segmentsWidth: 35; segmentsHeight: 25" material={`color: ${C.cyan}; wireframe: true; opacity: 0.035; transparent: true; shader: flat`} />
-      <a-plane position="0 4 24" width="70" height="10" material="color: #05070a; roughness: 1" />
-
-      {/* desk + monitor + keyboard */}
-      <a-entity position="-3.5 0 13">
-        <a-box position="0 0.78 0" width="3.2" height="0.08" depth="1.6" material="color: #10151b; roughness: 0.7" />
-        {[[-1.5, -0.7], [1.5, -0.7], [-1.5, 0.7], [1.5, 0.7]].map(([x, z], i) => (
-          <a-box key={i} position={`${x} 0.39 ${z}`} width="0.08" height="0.78" depth="0.08" material="color: #0b0f14; roughness: 0.8" />
-        ))}
-        <a-box position="0 1.0 -0.35" width="0.12" height="0.45" depth="0.12" material="color: #0b0f14" />
-        <a-box position="0 1.06 -0.35" width="0.5" height="0.04" depth="0.4" material="color: #0b0f14" />
-        <a-box position="0 1.5 -0.35" width="1.5" height="0.95" depth="0.08" material="color: #0a0e13; roughness: 0.4" />
-        <a-plane position="0 1.5 -0.3" width="1.38" height="0.83" material={`color: #0d2b33; emissive: #a8dcf0; emissiveIntensity: ${monitorOn ? 0.85 : 0}; roughness: 0.6`} />
-        <a-entity light={`type: point; color: #bfe6f5; intensity: ${monitorOn ? 1.1 : 0}; distance: 7`} position="0 1.5 0.8" />
-        <a-box position="0 0.845 0.35" width="1.1" height="0.045" depth="0.4" material="color: #141a21; roughness: 0.6" />
-      </a-entity>
-
-      {/* person at the desk, typing */}
-      <a-entity position="-3.5 0 14.6">
-        <a-box position="0 0.45 0.1" width="0.62" height="0.07" depth="0.62" material="color: #0d1218; roughness: 0.8" />
-        <a-box position="0 0.95 0.38" width="0.62" height="0.9" depth="0.07" material="color: #0d1218; roughness: 0.8" />
-        <a-box position="0 0.22 0.1" width="0.07" height="0.45" depth="0.07" material="color: #0d1218" />
-        <a-box position="0 1.0 0" width="0.55" height="0.7" depth="0.32" material="color: #1c2530; roughness: 0.8" />
-        <a-box position="0 1.56 -0.02" width="0.3" height="0.34" depth="0.3" material="color: #2b3644; roughness: 0.7"
-          animation="property: position; from: 0 1.56 -0.02; to: 0 1.53 -0.02; dir: alternate; dur: 2600; loop: true; easing: easeInOutSine" />
-        <a-box position="-0.33 1.15 -0.1" width="0.14" height="0.5" depth="0.14" rotation="-30 0 0" material="color: #1c2530; roughness: 0.8" />
-        <a-box position="0.33 1.15 -0.1" width="0.14" height="0.5" depth="0.14" rotation="-30 0 0" material="color: #1c2530; roughness: 0.8" />
-        <a-box position="-0.22 0.92 -0.55" width="0.12" height="0.12" depth="0.55" rotation="8 0 0" material="color: #232f3d; roughness: 0.8"
-          animation="property: position; from: -0.22 0.92 -0.55; to: -0.22 0.885 -0.55; dir: alternate; dur: 480; loop: true; easing: easeInOutSine" />
-        <a-box position="0.22 0.92 -0.55" width="0.12" height="0.12" depth="0.55" rotation="8 0 0" material="color: #232f3d; roughness: 0.8"
-          animation="property: position; from: 0.22 0.92 -0.55; to: 0.22 0.885 -0.55; dir: alternate; dur: 620; loop: true; easing: easeInOutSine" />
-        <a-box position="-0.16 0.52 -0.3" width="0.2" height="0.2" depth="0.6" material="color: #161e28; roughness: 0.85" />
-        <a-box position="0.16 0.52 -0.3" width="0.2" height="0.2" depth="0.6" material="color: #161e28; roughness: 0.85" />
-        <a-box position="-0.16 0.25 -0.55" width="0.18" height="0.5" depth="0.18" material="color: #161e28; roughness: 0.85" />
-        <a-box position="0.16 0.25 -0.55" width="0.18" height="0.5" depth="0.18" material="color: #161e28; roughness: 0.85" />
-      </a-entity>
+      {/* ============ 00 THE ROOM (z ≈ 40) ============ */}
+      <Room monitorOn={monitorOn} />
 
       {/* ============ 01 COMPUTER CASE ============ */}
       <a-entity position="0 1.2 -0.6">
@@ -400,8 +479,8 @@ function SceneInner({ selectedId, onSelect, onToggle, gates, transistorOn, bootP
         ["CONTROL UNIT", "DECODE", -1.5],
         ["ALU", "EXECUTE", 1.5],
         ["RESULT", "REGISTER R1", 4.5],
-      ].map(([n, sub, x], bi) => (
-        <a-entity key={n as string} position={`${x} 1 -26`} animation={`property: position; from: ${x} 1 -26; to: ${x} 1.14 -26; dir: alternate; dur: ${3000 + bi * 450}; loop: true; easing: easeInOutSine`}>
+      ].map(([n, sub, x]) => (
+        <a-entity key={n as string} position={`${x} 1 -26`}>
           <a-box width="2.2" height="1" depth="0.5" material={`color: ${C.chip}; metalness: 0.4; roughness: 0.4`} />
           <a-box position="0 0.51 0" width="2.2" height="0.015" depth="0.5" material={`color: ${C.cyan}; shader: flat`} />
           <a-text value={n} font="sourcecodepro" color={C.text} width="3.2" align="center" position="0 0.1 0.26" />
@@ -416,7 +495,7 @@ function SceneInner({ selectedId, onSelect, onToggle, gates, transistorOn, bootP
       <a-entity light="type: point; color: #cfe9ff; intensity: 1.2; distance: 12" position="0 4 -34" />
 
       {/* OR (left) */}
-      <a-entity position="-4.2 1 -38" animation="property: position; from: -4.2 1 -38; to: -4.2 1.16 -38; dir: alternate; dur: 3400; loop: true; easing: easeInOutSine">
+      <a-entity position="-4.2 1 -38">
         <a-box className="clickable" data-id="or" width="1.2" height="1.2" depth="0.5" material={`color: ${C.chip}; metalness: 0.5; roughness: 0.3`} />
         <a-cone position="0.9 0 0" rotation="0 0 -90" radius-bottom="0.6" radius-top="0" height="0.6" segments-radial="24" scale="1 1 0.42" material={`color: ${C.chip}; metalness: 0.5; roughness: 0.3`} />
         <a-text value="OR" font="sourcecodepro" color={C.text} width="4" align="center" position="0.15 0 0.26" />
@@ -432,7 +511,7 @@ function SceneInner({ selectedId, onSelect, onToggle, gates, transistorOn, bootP
       </a-entity>
 
       {/* AND (center) */}
-      <a-entity position="0 1 -38" animation="property: position; from: 0 1 -38; to: 0 1.16 -38; dir: alternate; dur: 4100; loop: true; easing: easeInOutSine">
+      <a-entity position="0 1 -38">
         <a-box className="clickable" data-id="and" width="1.2" height="1.2" depth="0.5" material={`color: ${C.chip}; metalness: 0.5; roughness: 0.3`} />
         <a-cylinder position="0.6 0 0" rotation="90 0 0" radius="0.6" height="0.5" theta-start="0" theta-length="180" material={`color: ${C.chip}; metalness: 0.5; roughness: 0.3`} />
         <a-text value="AND" font="sourcecodepro" color={C.text} width="4" align="center" position="0.15 0 0.26" />
@@ -448,7 +527,7 @@ function SceneInner({ selectedId, onSelect, onToggle, gates, transistorOn, bootP
       </a-entity>
 
       {/* NOT (right) */}
-      <a-entity position="4.2 1 -38" animation="property: position; from: 4.2 1 -38; to: 4.2 1.16 -38; dir: alternate; dur: 2900; loop: true; easing: easeInOutSine">
+      <a-entity position="4.2 1 -38">
         <a-cone className="clickable" data-id="not" rotation="0 0 -90" radius-bottom="0.65" radius-top="0" height="1.2" segments-radial="3" scale="1 1 0.5" material={`color: ${C.chip}; metalness: 0.5; roughness: 0.3`} />
         <a-torus position="0.72 0 0" radius="0.1" radius-tubular="0.03" material={`color: ${wire(!!notOut)}`} />
         <a-text value="NOT" font="sourcecodepro" color={C.text} width="3.4" align="center" position="-0.12 0 0.3" />
@@ -477,18 +556,80 @@ function SceneInner({ selectedId, onSelect, onToggle, gates, transistorOn, bootP
       <a-text value="SOURCE" font="sourcecodepro" color={C.muted} width="3" align="center" position="-2 1.95 -50" />
       <a-text value="GATE" font="sourcecodepro" color={transistorOn ? C.cyan : C.muted} width="3" align="center" position="0 2.45 -50" />
       <a-text value="DRAIN" font="sourcecodepro" color={C.muted} width="3" align="center" position="2 1.95 -50" />
-      <a-text value={transistorOn ? "1" : "0"} font="sourcecodepro" color={transistorOn ? C.cyan : C.muted} width="16" align="center" position="0 3.4 -50.5" animation="property: scale; from: 1 1 1; to: 1.07 1.07 1.07; dir: alternate; dur: 2200; loop: true; easing: easeInOutSine" />
+      <a-text value={transistorOn ? "1" : "0"} font="sourcecodepro" color={transistorOn ? C.cyan : C.muted} width="16" align="center" position="0 3.4 -50.5" />
       <a-text value={transistorOn ? "SIGNAL ACTIVE" : "SIGNAL BLOCKED"} font="sourcecodepro" color={C.muted} width="2.4" align="center" position="0 2.85 -50.5" />
-      {/* slow halo ring around the transistor, ignites when ON */}
-      <a-torus position="0 0.9 -50" radius="3.6" radius-tubular="0.025" rotation="90 0 0"
-        material={`color: ${transistorOn ? C.cyan : C.violet}; shader: flat; opacity: ${transistorOn ? 0.8 : 0.25}; transparent: true`}
-        animation="property: rotation; to: 90 360 0; dur: 18000; loop: true; easing: linear" />
       {transistorOn
         ? [0, 280, 560, 840, 1120].map((d, i) => (
             <Pulse key={d} from={`-2.1 0.45 ${-49.6 - (i % 3) * 0.3}`} to={`2.1 0.45 ${-49.6 - (i % 3) * 0.3}`} dur={1400} delay={d} r={0.06} />
           ))
         : null}
       <Label id="transistor" pos="2.9 1.3 -49.5" show={is("transistor")} />
+
+      {/* ============ 09 4-BIT ADDER ============ */}
+      <a-plane position="0 -0.7 -64" rotation="-90 0 0" width="26" height="14" geometry="segmentsWidth: 26; segmentsHeight: 14" material={`color: ${C.cyan}; wireframe: true; opacity: 0.07; transparent: true; shader: flat`} />
+      <a-entity light="type: point; color: #cfe9ff; intensity: 1.3; distance: 14" position="0 4 -59" />
+      <a-text value="4-BIT RIPPLE-CARRY ADDER" font="sourcecodepro" color={C.muted} width="3" position="-5.4 3.75 -64" />
+      <a-text
+        value={allDone ? `${msb(adderA)} + ${msb(adderB)} = ${add.carry}${msb(add.sum)}   (${toNum(adderA)} + ${toNum(adderB)} = ${toNum(add.sum) + add.carry * 16})` : "COMPUTING..."}
+        font="sourcecodepro"
+        color={C.cyan}
+        width="5"
+        align="right"
+        position="5.4 3.75 -64"
+      />
+      {add.cols.map((c, i) => {
+        const x = 3.9 - i * 2.6;
+        const pend = i >= rippleStep;
+        const lit = (v: number) => !pend && !!v;
+        const hl = (g: GateKey) => !!quizTarget && quizTarget.bit === i && quizTarget.gate === g;
+        return (
+          <a-entity key={i} position={`${x} 0 -64`}>
+            <a-text value={`BIT ${i}`} font="sourcecodepro" color={pend ? C.muted : C.text} width="2.4" align="center" position="0 3.35 0" />
+            {/* inputs */}
+            {(["a", "b"] as const).map((k, j) => {
+              const v = k === "a" ? c.a : c.b;
+              const px = j ? 0.42 : -0.42;
+              return (
+                <a-entity key={k}>
+                  <a-sphere className="clickable" data-toggle={`add-${k}-${i}`} position={`${px} 2.8 0`} radius="0.17" segments-width="12" segments-height="8" material={`color: ${wire(!!v)}`} />
+                  <a-text value={`${k.toUpperCase()}${i}=${v}`} font="sourcecodepro" color={v ? C.cyan : C.muted} width="1.6" align="center" position={`${px} 3.08 0.05`} />
+                  <a-box position={`${px} 2.4 0`} width="0.03" height="0.6" depth="0.03" material={`color: ${wire(!!v)}; shader: flat`} />
+                </a-entity>
+              );
+            })}
+            <GateBox x={-0.45} y={2.0} label="XOR" id="xor" on={lit(c.xor1)} pend={pend} hl={hl("xor1")} />
+            <GateBox x={0.55} y={2.0} label="AND" id="and" on={lit(c.and1)} pend={pend} hl={hl("and1")} />
+            <GateBox x={-0.45} y={1.2} label="XOR" id="xor" on={lit(c.xor2)} pend={pend} hl={hl("xor2")} />
+            <GateBox x={0.55} y={1.2} label="AND" id="and" on={lit(c.and2)} pend={pend} hl={hl("and2")} />
+            <GateBox x={0.55} y={0.45} label="OR" id="or" on={lit(c.or)} pend={pend} hl={hl("or")} />
+            <a-box position="-0.45 1.6 0" width="0.03" height="0.38" depth="0.03" material={`color: ${wire(lit(c.xor1))}; shader: flat`} />
+            <a-box position="0.55 0.82 0" width="0.03" height="0.38" depth="0.03" material={`color: ${wire(lit(c.and2))}; shader: flat`} />
+            <a-box position="-0.45 0.75 0" width="0.03" height="0.5" depth="0.03" material={`color: ${wire(lit(c.xor2))}; shader: flat`} />
+            {/* sum */}
+            <a-sphere position="-0.45 0.25 0" radius="0.2" segments-width="12" segments-height="8" material={`color: ${lit(c.sum) ? C.cyan : C.dim}; shader: flat`} />
+            <a-text value={pend ? `S${i}=?` : `S${i}=${c.sum}`} font="sourcecodepro" color={lit(c.sum) ? C.cyan : C.muted} width="1.8" align="center" position="-0.45 -0.15 0.05" />
+            {/* carry out: drop, run left, rise into the next column */}
+            <a-box position="0.55 0.0 0" width="0.04" height="0.5" depth="0.04" material={`color: ${wire(lit(c.or))}; shader: flat`} />
+            <a-box position="-0.5 -0.25 0" width="2.1" height="0.04" depth="0.04" material={`color: ${wire(lit(c.or))}; shader: flat`} />
+            {lit(c.or) ? <Pulse from="0.55 -0.25 0.03" to="-1.55 -0.25 0.03" dur={700} r={0.05} /> : null}
+            {i === 0 ? <a-text value="C IN 0" font="sourcecodepro" color={C.muted} width="1.6" position="1.0 1.45 0" /> : null}
+            {i > 0 ? (
+              <>
+                <a-box position="1.05 0.475 0" width="0.04" height="1.45" depth="0.04" material={`color: ${wire(!pend && !!c.cin)}; shader: flat`} />
+                <a-box position="0.97 1.2 0" width="0.17" height="0.04" depth="0.04" material={`color: ${wire(!pend && !!c.cin)}; shader: flat`} />
+              </>
+            ) : null}
+            {i === 3 ? (
+              <>
+                <a-sphere position="-1.75 -0.25 0" radius="0.2" segments-width="12" segments-height="8" material={`color: ${allDone && add.carry ? C.violet : C.dim}; shader: flat`} />
+                <a-text value={`C OUT ${allDone ? add.carry : "?"}`} font="sourcecodepro" color={C.muted} width="1.8" align="center" position="-1.75 -0.65 0" />
+              </>
+            ) : null}
+          </a-entity>
+        );
+      })}
+      <Label id="xor" pos="-5.6 4.4 -63.6" show={is("xor")} />
+      <Label id="adder" pos="-5.6 4.4 -63.6" show={is("adder")} />
     </a-scene>
   );
 }

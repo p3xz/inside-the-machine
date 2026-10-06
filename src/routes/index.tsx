@@ -1,17 +1,19 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useEffect, useState } from "react";
-import { MachineScene, type BootPhase, type GateInputs } from "@/components/machine/MachineScene";
-import { Hud } from "@/components/machine/Hud";
-import { bitToggle, click, power, select, setAudioZone, startup, stopAll, whoosh } from "@/lib/audio";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { MachineScene, type GateInputs } from "@/components/machine/MachineScene";
+import { Hud, QUIZ_LEN, type LegalTab, type Phase, type Quiz } from "@/components/machine/Hud";
+import { LegalModal } from "@/components/machine/LegalModal";
+import { GATE_KEYS, GATE_TYPE, rippleAdd, type Bits, type GateKey } from "@/lib/adder";
+import { audio } from "@/lib/audio";
 
 export const Route = createFileRoute("/")({
   ssr: false,
   head: () => ({
     meta: [
-      { title: "Inside the Machine — A journey from computer to transistor" },
-      { name: "description", content: "Scroll through a computer in 3D: motherboard, CPU, logic gates, down to a single transistor switch." },
+      { title: "Inside the Machine — The journey between two keystrokes" },
+      { name: "description", content: "Power on a computer, dive through its vent and travel down to a single transistor, then make a 4-bit adder compute in 3D." },
       { property: "og:title", content: "Inside the Machine" },
-      { property: "og:description", content: "A scroll-driven 3D journey from a computer down to a transistor." },
+      { property: "og:description", content: "A scroll-driven 3D journey from a quiet desk, through a CPU, down to a transistor and back." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
@@ -19,106 +21,175 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
+const MUTE_KEY = "itm:muted";
+type Target = { bit: number; gate: GateKey };
+
+function firing(a: Bits, b: Bits): Target[] {
+  const out: Target[] = [];
+  rippleAdd(a, b).cols.forEach((c, bit) => GATE_KEYS.forEach((gate) => c[gate] && out.push({ bit, gate })));
+  return out;
+}
+
 function Index() {
+  const [phase, setPhase] = useState<Phase>("off");
+  const [monitorOn, setMonitorOn] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [gates, setGates] = useState<GateInputs>({ and: [0, 0], or: [0, 0], not: [0] });
   const [activeGate, setActiveGate] = useState<"and" | "or" | "not">("and");
   const [transistorOn, setTransistorOn] = useState(false);
-  const [boot, setBoot] = useState<BootPhase>("off");
+  const [adderA, setA] = useState<Bits>([1, 0, 1, 0]);
+  const [adderB, setB] = useState<Bits>([1, 1, 0, 0]);
+  const [rippleStep, setRipple] = useState(4);
+  const [quiz, setQuiz] = useState<Quiz>({ on: false, n: 0, score: 0, target: null, last: null });
+  const [muted, setMuted] = useState(false);
+  const [legal, setLegal] = useState<LegalTab | null>(null);
+  const justFired = useRef<Target[]>([]);
 
-  const onPower = useCallback(() => {
-    startup(); // runs inside the click gesture, unlocking browser audio
-    setAudioZone("room");
-    setBoot("starting");
-    window.setTimeout(() => setBoot("on"), 1700);
+  useEffect(() => {
+    if ("scrollRestoration" in history) history.scrollRestoration = "manual";
+    window.scrollTo(0, 0);
+    const m = localStorage.getItem(MUTE_KEY) === "1";
+    setMuted(m);
+    audio.setMuted(m);
   }, []);
 
-  const onReset = useCallback(() => {
-    setSelectedId(null);
-    stopAll();
-    setBoot("off");
-    window.scrollTo({ top: 0, behavior: "auto" });
+  // no scrolling until the machine is powered on
+  useEffect(() => {
+    document.documentElement.style.overflow = phase === "ready" ? "" : "hidden";
+  }, [phase]);
+
+  // visible carry ripple, one column at a time
+  const first = useRef(true);
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    setRipple(0);
+    let s = 0;
+    const id = window.setInterval(() => {
+      s++;
+      setRipple(s);
+      if (s >= 4) clearInterval(id);
+    }, 230);
+    return () => clearInterval(id);
+  }, [adderA, adderB]);
+
+  // quiz: pick a gate that is actually firing, preferring ones that just switched on
+  useEffect(() => {
+    if (!quiz.on || quiz.target || quiz.n >= QUIZ_LEN) return;
+    const fresh = justFired.current;
+    const pool = fresh.length ? fresh : firing(adderA, adderB);
+    if (!pool.length) return;
+    const t = pool[Math.floor(Math.random() * pool.length)]!;
+    justFired.current = [];
+    setQuiz((q) => ({ ...q, target: t }));
+  }, [quiz, adderA, adderB]);
+
+  const powerOn = useCallback(() => {
+    audio.init();
+    audio.startup();
+    setPhase("boot");
+    window.setTimeout(() => setMonitorOn(true), 950);
+    window.setTimeout(() => setPhase("ready"), 2300);
   }, []);
-
-  // lock scroll until the machine is powered on
-  useEffect(() => {
-    document.body.style.overflow = boot === "off" ? "hidden" : "";
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [boot]);
-
-  // soundscape follows the journey: room tone outside, ambient pad inside
-  useEffect(() => {
-    if (boot === "off") return;
-    let raf = 0;
-    let whooshed = false;
-    const tick = () => {
-      const max = document.documentElement.scrollHeight - window.innerHeight;
-      const p = max > 0 ? Math.min(1, Math.max(0, window.scrollY / max)) : 0;
-      setAudioZone(p < 0.28 || p > 0.9 ? "room" : "inside");
-      if (!whooshed && p > 0.33) {
-        whooshed = true;
-        whoosh();
-      } else if (p < 0.2) {
-        whooshed = false;
-      }
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [boot]);
 
   const onSelect = useCallback((id: string | null) => {
     setSelectedId(id);
     if (id === "and" || id === "or" || id === "not") setActiveGate(id);
-    if (id) select();
   }, []);
 
-  const onClose = useCallback(() => {
-    setSelectedId(null);
-    click();
-  }, []);
+  const onToggle = useCallback(
+    (key: string) => {
+      if (key.startsWith("add-")) {
+        const [, which, bit] = key.split("-") as [string, "a" | "b", string];
+        const i = +bit;
+        const before = firing(adderA, adderB);
+        const nextA = [...adderA] as Bits;
+        const nextB = [...adderB] as Bits;
+        const t = which === "a" ? nextA : nextB;
+        t[i] = t[i] ? 0 : 1;
+        justFired.current = firing(nextA, nextB).filter((f) => !before.some((x) => x.bit === f.bit && x.gate === f.gate));
+        setA(nextA);
+        setB(nextB);
+        return;
+      }
+      const [g, pin] = key.split("-") as ["and" | "or" | "not", "a" | "b"];
+      const i = pin === "a" ? 0 : 1;
+      setActiveGate(g);
+      setGates((prev) => {
+        const arr = [...prev[g]] as number[];
+        arr[i] = arr[i] ? 0 : 1;
+        return { ...prev, [g]: arr } as GateInputs;
+      });
+    },
+    [adderA, adderB],
+  );
 
-  const onToggle = useCallback((key: string) => {
-    const [g, pin] = key.split("-") as ["and" | "or" | "not", "a" | "b"];
-    const i = pin === "a" ? 0 : 1;
-    setActiveGate(g);
-    setGates((prev) => {
-      const arr = [...prev[g]] as number[];
-      const next = arr[i] ? 0 : 1;
-      arr[i] = next;
-      bitToggle(!!next);
-      return { ...prev, [g]: arr } as GateInputs;
+  const onQuizAnswer = useCallback((ans: string) => {
+    setQuiz((q) => {
+      if (!q.target) return q;
+      const right = GATE_TYPE[q.target.gate] === ans;
+      return { ...q, n: q.n + 1, score: q.score + (right ? 1 : 0), target: null, last: right ? "right" : "wrong" };
     });
   }, []);
 
-  const onTransistor = useCallback((v: boolean) => {
-    setTransistorOn(v);
-    power(v);
+  const toggleMute = useCallback(() => {
+    setMuted((m) => {
+      const n = !m;
+      audio.setMuted(n);
+      localStorage.setItem(MUTE_KEY, n ? "1" : "0");
+      return n;
+    });
   }, []);
 
-  const onGateTab = useCallback((g: "and" | "or" | "not") => {
-    setActiveGate(g);
-    click();
+  const restart = useCallback(() => {
+    setSelectedId(null);
+    setQuiz({ on: false, n: 0, score: 0, target: null, last: null });
+    window.scrollTo({ top: 0, behavior: "auto" });
   }, []);
 
   return (
     <main>
-      <MachineScene selectedId={selectedId} onSelect={onSelect} onToggle={onToggle} gates={gates} transistorOn={transistorOn} bootPhase={boot} />
-      <Hud
+      <MachineScene
         selectedId={selectedId}
-        onClose={onClose}
+        onSelect={onSelect}
+        onToggle={onToggle}
+        gates={gates}
+        transistorOn={transistorOn}
+        monitorOn={monitorOn}
+        adderA={adderA}
+        adderB={adderB}
+        rippleStep={rippleStep}
+        quizTarget={quiz.on ? quiz.target : null}
+      />
+      <Hud
+        phase={phase}
+        onPowerOn={powerOn}
+        selectedId={selectedId}
+        onClose={() => setSelectedId(null)}
         gates={gates}
         activeGate={activeGate}
-        setActiveGate={onGateTab}
+        setActiveGate={setActiveGate}
         onToggle={onToggle}
         transistorOn={transistorOn}
-        setTransistorOn={onTransistor}
-        boot={boot}
-        onPower={onPower}
-        onReset={onReset}
+        setTransistorOn={setTransistorOn}
+        adderA={adderA}
+        adderB={adderB}
+        rippleStep={rippleStep}
+        quiz={quiz}
+        onQuizStart={() => {
+          justFired.current = [];
+          setQuiz({ on: true, n: 0, score: 0, target: null, last: null });
+        }}
+        onQuizAnswer={onQuizAnswer}
+        onQuizExit={() => setQuiz({ on: false, n: 0, score: 0, target: null, last: null })}
+        muted={muted}
+        onMute={toggleMute}
+        onRestart={restart}
+        openLegal={setLegal}
       />
+      {legal && <LegalModal tab={legal} setTab={setLegal} onClose={() => setLegal(null)} />}
       <div className="scroll-track" aria-hidden="true" />
     </main>
   );

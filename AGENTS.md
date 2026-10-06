@@ -1,10 +1,14 @@
-<!-- LOVABLE:BEGIN -->
+# AGENTS.md
+
 > [!IMPORTANT]
-> This project is connected to [Lovable](https://lovable.dev). Avoid rewriting
-> published git history — force pushing, or rebasing/amending/squashing commits
-> that are already pushed — as it rewrites history on Lovable's side and the
-> user will likely lose their project history.
->
-> Commits you push to the connected branch sync back to Lovable and show up in
-> the editor, so keep the branch in a working state.
-<!-- LOVABLE:END -->
+> This project was previously connected to Lovable, but the GitHub sync was
+> disconnected by the project owner on 2026-10-06 after Lovable's automation
+> force-pushed its stale editor state over newer commits. Do NOT reconnect
+> it without the owner's explicit instruction. Normal commits and pushes to
+> main are safe.
+
+- Do not rewrite published git history (no force-push, rebase, amend, or
+  squash of pushed commits) except when the owner explicitly asks.
+- Keep the main branch in a working state; verify with `bun run build`.
+- All commits use `p3xz <108751874+p3xz@users.noreply.github.com>`.
+- No Lovable branding, telemetry, or references in code, README, or metadata.

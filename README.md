@@ -2,6 +2,8 @@
 
 A scroll-driven 3D journey from a computer down to a single transistor. Scroll to fly through seven stages: computer case, motherboard, CPU internals, instruction pipeline, logic gates, and a working transistor switch, with clickable parts, live logic-gate playgrounds, synthesized sound, and a peaceful ambient soundtrack.
 
+![Preview](docs/preview.gif)
+
 ![Tech](https://skillicons.dev/icons?i=react,typescript,vite,tailwind)
 
 ## Quick start
