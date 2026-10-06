@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState, type RefObject } from "react";
 import { INFO, KEYFRAMES, CUT_OUT } from "@/lib/journey-data";
 import { rippleAdd, msb, toNum, type Bits, type GateKey } from "@/lib/adder";
 
@@ -32,6 +32,7 @@ type Props = {
   adderB: Bits;
   rippleStep: number;
   quizTarget: { bit: number; gate: GateKey } | null;
+  monitorOverlayRef: RefObject<HTMLAnchorElement | null>;
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -162,9 +163,7 @@ const Room = memo(function Room({ monitorOn }: { monitorOn: boolean }) {
           position="-0.1 1.18 39.767"
           width="0.75"
           height="0.43"
-          className="clickable"
-          data-link="https://namishhh.vercel.app"
-          material="src: #portfolio-shot; shader: flat"
+          material="color: #0a1420; shader: flat"
         />
       ) : (
         <a-plane
@@ -216,13 +215,15 @@ const Room = memo(function Room({ monitorOn }: { monitorOn: boolean }) {
   );
 });
 
-function SceneInner({ selectedId, onSelect, onToggle, gates, transistorOn, monitorOn, adderA, adderB, rippleStep, quizTarget }: Props) {
+function SceneInner({ selectedId, onSelect, onToggle, gates, transistorOn, monitorOn, adderA, adderB, rippleStep, quizTarget, monitorOverlayRef }: Props) {
   const sceneRef = useRef<Any>(null);
   const camRef = useRef<Any>(null);
   const cb = useRef({ onSelect, onToggle });
   cb.current = { onSelect, onToggle };
   const sel = useRef(selectedId);
   sel.current = selectedId;
+  const monRef = useRef(monitorOn);
+  monRef.current = monitorOn;
 
   // camera choreography + instruction token
   useEffect(() => {
@@ -233,6 +234,7 @@ function SceneInner({ selectedId, onSelect, onToggle, gates, transistorOn, monit
     const look = new THREE.Vector3(...KEYFRAMES[0]!.look);
     const tp = new THREE.Vector3();
     const tl = new THREE.Vector3();
+    const pv = new THREE.Vector3();
     const m = new THREE.Matrix4();
     const up = new THREE.Vector3(0, 1, 0);
     let last = performance.now();
@@ -262,6 +264,39 @@ function SceneInner({ selectedId, onSelect, onToggle, gates, transistorOn, monit
         cam.position.copy(pos);
         m.lookAt(pos, look, up);
         cam.quaternion.setFromRotationMatrix(m);
+      }
+      // project the monitor screen onto the HTML overlay (reliable image, no WebGL texture)
+      const ov = monitorOverlayRef.current;
+      if (ov) {
+        const showOverlay = monRef.current && p < 0.14 && !!cam;
+        if (!showOverlay) {
+          if (ov.dataset.on === "1") {
+            ov.dataset.on = "";
+            ov.style.opacity = "0";
+            ov.style.visibility = "hidden";
+          }
+        } else {
+          pv.set(-0.475, 1.18, 39.767).project(cam);
+          const x1 = (pv.x * 0.5 + 0.5) * window.innerWidth;
+          pv.set(0.275, 1.18, 39.767).project(cam);
+          const x2 = (pv.x * 0.5 + 0.5) * window.innerWidth;
+          pv.set(-0.1, 1.395, 39.767).project(cam);
+          const yTop = (-pv.y * 0.5 + 0.5) * window.innerHeight;
+          const w = Math.abs(x2 - x1);
+          if (pv.z < 1 && w > 4) {
+            const h = w * (0.43 / 0.75);
+            ov.dataset.on = "1";
+            ov.style.opacity = "1";
+            ov.style.visibility = "visible";
+            ov.style.transform = `translate(${Math.min(x1, x2)}px, ${yTop}px)`;
+            ov.style.width = `${w}px`;
+            ov.style.height = `${h}px`;
+          } else if (ov.dataset.on === "1") {
+            ov.dataset.on = "";
+            ov.style.opacity = "0";
+            ov.style.visibility = "hidden";
+          }
+        }
       }
       const fog = sceneRef.current?.object3D?.fog;
       if (fog) {
@@ -315,10 +350,6 @@ function SceneInner({ selectedId, onSelect, onToggle, gates, transistorOn, monit
       const el = idOf(e);
       if (!el) return;
       hit = true;
-      if (el.dataset.link) {
-        window.open(el.dataset.link, "_blank", "noopener");
-        return;
-      }
       if (el.dataset.toggle) cb.current.onToggle(el.dataset.toggle);
       else cb.current.onSelect(el.dataset.id);
     };
@@ -373,10 +404,6 @@ function SceneInner({ selectedId, onSelect, onToggle, gates, transistorOn, monit
       raycaster="objects: .clickable; far: 40"
     >
       <a-entity ref={camRef} camera="fov: 55; near: 0.02; far: 200" look-controls="enabled: false" wasd-controls="enabled: false" />
-
-      <a-assets>
-        <img id="portfolio-shot" src="/portfolio-shot.jpg" />
-      </a-assets>
 
       <a-entity light="type: ambient; color: #6b7c8f; intensity: 0.45" />
       <a-entity light="type: directional; color: #cfe9ff; intensity: 0.8" position="4 8 -10" />

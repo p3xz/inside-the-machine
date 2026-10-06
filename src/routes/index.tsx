@@ -59,6 +59,7 @@ function Index() {
   const [muted, setMuted] = useState(false);
   const [legal, setLegal] = useState<LegalTab | null>(null);
   const justFired = useRef<Target[]>([]);
+  const monitorOverlayRef = useRef<HTMLAnchorElement | null>(null);
 
   useEffect(() => {
     if ("scrollRestoration" in history) history.scrollRestoration = "manual";
@@ -212,7 +213,18 @@ function Index() {
         adderB={adderB}
         rippleStep={rippleStep}
         quizTarget={quiz.on ? quiz.target : null}
+        monitorOverlayRef={monitorOverlayRef}
       />
+      <a
+        ref={monitorOverlayRef}
+        href="https://namishhh.vercel.app"
+        target="_blank"
+        rel="noopener"
+        className="monitor-overlay"
+        aria-label="Open portfolio"
+      >
+        <img src="/portfolio-shot.jpg" alt="Namish's portfolio" draggable={false} />
+      </a>
       <Hud
         phase={phase}
         onPowerOn={powerOn}
