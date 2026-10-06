@@ -53,9 +53,20 @@ function Index() {
     audio.setMuted(m);
   }, []);
 
-  // no scrolling until the machine is powered on
+  // no scrolling until the machine is powered on.
+  // iOS Safari does not reliably re-enable scrolling when overflow is toggled
+  // on documentElement alone, so lock both html and body and force a reflow.
   useEffect(() => {
-    document.documentElement.style.overflow = phase === "ready" ? "" : "hidden";
+    const locked = phase !== "ready";
+    const html = document.documentElement;
+    const body = document.body;
+    html.style.overflow = locked ? "hidden" : "";
+    body.style.overflow = locked ? "hidden" : "";
+    if (!locked) void html.offsetHeight;
+    return () => {
+      html.style.overflow = "";
+      body.style.overflow = "";
+    };
   }, [phase]);
 
   // visible carry ripple, one column at a time
