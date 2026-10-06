@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { INFO, STAGES, stageAt } from "@/lib/journey-data";
+import { click, isMuted, setMuted } from "@/lib/audio";
 import type { GateInputs } from "./MachineScene";
 
 function useProgress() {
@@ -37,6 +38,7 @@ export function Hud(props: Props) {
   const idx = Math.max(0, stageAt(p));
   const stage = STAGES[idx]!;
   const info = props.selectedId ? INFO[props.selectedId] : null;
+  const [soundOn, setSoundOn] = useState(() => !isMuted());
 
   const g = props.activeGate;
   const ins = props.gates[g] as number[];
@@ -52,6 +54,22 @@ export function Hud(props: Props) {
         <div className="hud-meta">
           COMPUTING / <span className="text-primary">{stage.num}</span>—07
         </div>
+        <button
+          className="sound-toggle"
+          onClick={() => {
+            const next = !soundOn;
+            setSoundOn(next);
+            setMuted(!next);
+            if (next) click();
+          }}
+          aria-label={soundOn ? "Mute sound" : "Unmute sound"}
+          title={soundOn ? "Mute sound" : "Unmute sound"}
+        >
+          <span className="sound-icon" data-on={soundOn}>
+            <span className="sound-waves" />
+          </span>
+          <span className="sound-label">{soundOn ? "SOUND ON" : "SOUND OFF"}</span>
+        </button>
       </div>
 
       {/* stage rail */}
@@ -65,6 +83,7 @@ export function Hud(props: Props) {
               <button
                 className="hud-rail-btn"
                 onClick={() => {
+                  click();
                   const max = document.documentElement.scrollHeight - window.innerHeight;
                   window.scrollTo({ top: (s.start + 0.02) * max, behavior: "smooth" });
                 }}
@@ -169,7 +188,7 @@ export function Hud(props: Props) {
             <li>TO A COMPUTER</li>
           </ol>
           <p className="ending-line">You just travelled through the layers of computation.</p>
-          <button className="explore" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
+          <button className="explore" onClick={() => { click(); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
             EXPLORE AGAIN ↑
           </button>
         </div>

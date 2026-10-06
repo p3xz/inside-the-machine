@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { MachineScene, type GateInputs } from "@/components/machine/MachineScene";
 import { Hud } from "@/components/machine/Hud";
+import { bitToggle, click, power, select, unlockAudio } from "@/lib/audio";
 
 export const Route = createFileRoute("/")({
   ssr: false,
@@ -24,9 +25,19 @@ function Index() {
   const [activeGate, setActiveGate] = useState<"and" | "or" | "not">("and");
   const [transistorOn, setTransistorOn] = useState(false);
 
+  useEffect(() => {
+    unlockAudio();
+  }, []);
+
   const onSelect = useCallback((id: string | null) => {
     setSelectedId(id);
     if (id === "and" || id === "or" || id === "not") setActiveGate(id);
+    if (id) select();
+  }, []);
+
+  const onClose = useCallback(() => {
+    setSelectedId(null);
+    click();
   }, []);
 
   const onToggle = useCallback((key: string) => {
@@ -35,9 +46,21 @@ function Index() {
     setActiveGate(g);
     setGates((prev) => {
       const arr = [...prev[g]] as number[];
-      arr[i] = arr[i] ? 0 : 1;
+      const next = arr[i] ? 0 : 1;
+      arr[i] = next;
+      bitToggle(!!next);
       return { ...prev, [g]: arr } as GateInputs;
     });
+  }, []);
+
+  const onTransistor = useCallback((v: boolean) => {
+    setTransistorOn(v);
+    power(v);
+  }, []);
+
+  const onGateTab = useCallback((g: "and" | "or" | "not") => {
+    setActiveGate(g);
+    click();
   }, []);
 
   return (
@@ -45,13 +68,13 @@ function Index() {
       <MachineScene selectedId={selectedId} onSelect={onSelect} onToggle={onToggle} gates={gates} transistorOn={transistorOn} />
       <Hud
         selectedId={selectedId}
-        onClose={() => setSelectedId(null)}
+        onClose={onClose}
         gates={gates}
         activeGate={activeGate}
-        setActiveGate={setActiveGate}
+        setActiveGate={onGateTab}
         onToggle={onToggle}
         transistorOn={transistorOn}
-        setTransistorOn={setTransistorOn}
+        setTransistorOn={onTransistor}
       />
       <div className="scroll-track" aria-hidden="true" />
     </main>

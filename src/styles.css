@@ -201,3 +201,12 @@
 @media (prefers-reduced-motion: reduce) {
   .scroll-cue-line, .panel { animation: none; }
 }
+
+/* sound toggle */
+.sound-toggle { display: inline-flex; align-items: center; gap: 0.5rem; margin-top: 0.7rem; background: none; border: 1px solid var(--hairline); border-radius: 999px; padding: 0.32rem 0.7rem; font-size: 0.6rem; letter-spacing: 0.12em; color: var(--muted-foreground); transition: color .25s, border-color .25s; }
+.sound-toggle:hover { color: var(--foreground); border-color: var(--primary); }
+.sound-icon { position: relative; width: 14px; height: 14px; border: 1px solid currentColor; border-radius: 50%; display: inline-block; }
+.sound-icon::after { content: ""; position: absolute; inset: 4px; border-radius: 50%; background: var(--primary); opacity: 0.9; transition: opacity .25s; }
+.sound-icon[data-on="false"]::after { opacity: 0.15; }
+.sound-icon[data-on="false"]::before { content: ""; position: absolute; left: 1px; right: 1px; top: 50%; height: 1px; background: currentColor; transform: rotate(-45deg); }
+.sound-label { font-family: var(--font-mono); }

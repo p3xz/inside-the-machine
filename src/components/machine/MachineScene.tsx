@@ -348,8 +348,8 @@ function SceneInner({ selectedId, onSelect, onToggle, gates, transistorOn }: Pro
         ["CONTROL UNIT", "DECODE", -1.5],
         ["ALU", "EXECUTE", 1.5],
         ["RESULT", "REGISTER R1", 4.5],
-      ].map(([n, sub, x]) => (
-        <a-entity key={n as string} position={`${x} 1 -26`}>
+      ].map(([n, sub, x], bi) => (
+        <a-entity key={n as string} position={`${x} 1 -26`} animation={`property: position; from: ${x} 1 -26; to: ${x} 1.14 -26; dir: alternate; dur: ${3000 + bi * 450}; loop: true; easing: easeInOutSine`}>
           <a-box width="2.2" height="1" depth="0.5" material={`color: ${C.chip}; metalness: 0.4; roughness: 0.4`} />
           <a-box position="0 0.51 0" width="2.2" height="0.015" depth="0.5" material={`color: ${C.cyan}; shader: flat`} />
           <a-text value={n} font="sourcecodepro" color={C.text} width="3.2" align="center" position="0 0.1 0.26" />
@@ -364,7 +364,7 @@ function SceneInner({ selectedId, onSelect, onToggle, gates, transistorOn }: Pro
       <a-entity light="type: point; color: #cfe9ff; intensity: 1.2; distance: 12" position="0 4 -34" />
 
       {/* OR (left) */}
-      <a-entity position="-4.2 1 -38">
+      <a-entity position="-4.2 1 -38" animation="property: position; from: -4.2 1 -38; to: -4.2 1.16 -38; dir: alternate; dur: 3400; loop: true; easing: easeInOutSine">
         <a-box className="clickable" data-id="or" width="1.2" height="1.2" depth="0.5" material={`color: ${C.chip}; metalness: 0.5; roughness: 0.3`} />
         <a-cone position="0.9 0 0" rotation="0 0 -90" radius-bottom="0.6" radius-top="0" height="0.6" segments-radial="24" scale="1 1 0.42" material={`color: ${C.chip}; metalness: 0.5; roughness: 0.3`} />
         <a-text value="OR" font="sourcecodepro" color={C.text} width="4" align="center" position="0.15 0 0.26" />
@@ -380,7 +380,7 @@ function SceneInner({ selectedId, onSelect, onToggle, gates, transistorOn }: Pro
       </a-entity>
 
       {/* AND (center) */}
-      <a-entity position="0 1 -38">
+      <a-entity position="0 1 -38" animation="property: position; from: 0 1 -38; to: 0 1.16 -38; dir: alternate; dur: 4100; loop: true; easing: easeInOutSine">
         <a-box className="clickable" data-id="and" width="1.2" height="1.2" depth="0.5" material={`color: ${C.chip}; metalness: 0.5; roughness: 0.3`} />
         <a-cylinder position="0.6 0 0" rotation="90 0 0" radius="0.6" height="0.5" theta-start="0" theta-length="180" material={`color: ${C.chip}; metalness: 0.5; roughness: 0.3`} />
         <a-text value="AND" font="sourcecodepro" color={C.text} width="4" align="center" position="0.15 0 0.26" />
@@ -396,7 +396,7 @@ function SceneInner({ selectedId, onSelect, onToggle, gates, transistorOn }: Pro
       </a-entity>
 
       {/* NOT (right) */}
-      <a-entity position="4.2 1 -38">
+      <a-entity position="4.2 1 -38" animation="property: position; from: 4.2 1 -38; to: 4.2 1.16 -38; dir: alternate; dur: 2900; loop: true; easing: easeInOutSine">
         <a-cone className="clickable" data-id="not" rotation="0 0 -90" radius-bottom="0.65" radius-top="0" height="1.2" segments-radial="3" scale="1 1 0.5" material={`color: ${C.chip}; metalness: 0.5; roughness: 0.3`} />
         <a-torus position="0.72 0 0" radius="0.1" radius-tubular="0.03" material={`color: ${wire(!!notOut)}`} />
         <a-text value="NOT" font="sourcecodepro" color={C.text} width="3.4" align="center" position="-0.12 0 0.3" />
@@ -425,8 +425,12 @@ function SceneInner({ selectedId, onSelect, onToggle, gates, transistorOn }: Pro
       <a-text value="SOURCE" font="sourcecodepro" color={C.muted} width="3" align="center" position="-2 1.95 -50" />
       <a-text value="GATE" font="sourcecodepro" color={transistorOn ? C.cyan : C.muted} width="3" align="center" position="0 2.45 -50" />
       <a-text value="DRAIN" font="sourcecodepro" color={C.muted} width="3" align="center" position="2 1.95 -50" />
-      <a-text value={transistorOn ? "1" : "0"} font="sourcecodepro" color={transistorOn ? C.cyan : C.muted} width="16" align="center" position="0 3.4 -50.5" />
+      <a-text value={transistorOn ? "1" : "0"} font="sourcecodepro" color={transistorOn ? C.cyan : C.muted} width="16" align="center" position="0 3.4 -50.5" animation="property: scale; from: 1 1 1; to: 1.07 1.07 1.07; dir: alternate; dur: 2200; loop: true; easing: easeInOutSine" />
       <a-text value={transistorOn ? "SIGNAL ACTIVE" : "SIGNAL BLOCKED"} font="sourcecodepro" color={C.muted} width="2.4" align="center" position="0 2.85 -50.5" />
+      {/* slow halo ring around the transistor, ignites when ON */}
+      <a-torus position="0 0.9 -50" radius="3.6" radius-tubular="0.025" rotation="90 0 0"
+        material={`color: ${transistorOn ? C.cyan : C.violet}; shader: flat; opacity: ${transistorOn ? 0.8 : 0.25}; transparent: true`}
+        animation="property: rotation; to: 90 360 0; dur: 18000; loop: true; easing: linear" />
       {transistorOn
         ? [0, 280, 560, 840, 1120].map((d, i) => (
             <Pulse key={d} from={`-2.1 0.45 ${-49.6 - (i % 3) * 0.3}`} to={`2.1 0.45 ${-49.6 - (i % 3) * 0.3}`} dur={1400} delay={d} r={0.06} />
