@@ -157,19 +157,14 @@ const Room = memo(function Room({ monitorOn }: { monitorOn: boolean }) {
       <a-box position="-0.1 0.8 39.78" width="0.22" height="0.02" depth="0.16" material={mat("#151a20")} />
       <a-box position="-0.1 0.92 39.76" width="0.04" height="0.24" depth="0.03" material={mat("#151a20")} />
       <a-box position="-0.1 1.18 39.75" width="0.8" height="0.48" depth="0.03" material={`color: #0c1015; metalness: 0.4; roughness: 0.5`} />
-      <a-plane position="-0.1 1.18 39.767" width="0.75" height="0.43" material={`color: ${monitorOn ? "#16263a" : "#020304"}; shader: flat`} />
-      {monitorOn ? (
-        <>
-          {/* browser address bar showing the author's site */}
-          <a-plane position="-0.1 1.355 39.768" width="0.75" height="0.06" material="color: #0b1220; shader: flat" />
-          <a-text value="namishhh.vercel.app" font="sourcecodepro" color={C.text} width="0.85" position="-0.44 1.345 39.77" />
-          <a-entity position="-0.45 1.27 39.769">
-            {["$ ./compile --target cpu", "  linking ............ ok", "  add r1, r2, r3", "  mov r4, r1", "  cmp r4, #8", "> _"].map((t, i) => (
-              <a-text key={i} value={t} font="sourcecodepro" color={i === 5 ? C.cyan : C.screen} width="0.9" position={`0 ${-i * 0.055} 0`} />
-            ))}
-          </a-entity>
-        </>
-      ) : null}
+      <a-plane
+        position="-0.1 1.18 39.767"
+        width="0.75"
+        height="0.43"
+        className={monitorOn ? "clickable" : undefined}
+        data-link={monitorOn ? "https://namishhh.vercel.app" : undefined}
+        material={monitorOn ? "src: url(/portfolio-shot.jpg); shader: flat" : "color: #020304; shader: flat"}
+      />
       <a-entity light={`type: point; color: ${C.screen}; intensity: ${monitorOn ? 1.1 : 0}; distance: 3.2`} position="-0.1 1.2 40.15" />
 
       {/* keyboard, mouse, mug */}
@@ -311,6 +306,10 @@ function SceneInner({ selectedId, onSelect, onToggle, gates, transistorOn, monit
       const el = idOf(e);
       if (!el) return;
       hit = true;
+      if (el.dataset.link) {
+        window.open(el.dataset.link, "_blank", "noopener");
+        return;
+      }
       if (el.dataset.toggle) cb.current.onToggle(el.dataset.toggle);
       else cb.current.onSelect(el.dataset.id);
     };
