@@ -375,7 +375,7 @@ function SceneInner({ selectedId, onSelect, onToggle, gates, transistorOn, monit
       <a-entity ref={camRef} camera="fov: 55; near: 0.02; far: 200" look-controls="enabled: false" wasd-controls="enabled: false" />
 
       <a-assets>
-        <img id="portfolio-shot" src="/portfolio-shot.jpg" crossOrigin="anonymous" />
+        <img id="portfolio-shot" src="/portfolio-shot.jpg" />
       </a-assets>
 
       <a-entity light="type: ambient; color: #6b7c8f; intensity: 0.45" />
