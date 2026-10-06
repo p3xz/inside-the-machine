@@ -77,7 +77,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { title: "Inside the Machine" },
       { name: "description", content: "A scroll-driven 3D journey from a computer to a transistor." },
       { property: "og:type", content: "website" },
+      { property: "og:title", content: "Inside the Machine" },
+      { property: "og:description", content: "A scroll-driven 3D journey from a computer to a transistor." },
+      { property: "og:url", content: "https://inside-the-machine-one.vercel.app/" },
+      { property: "og:image", content: "https://inside-the-machine-one.vercel.app/preview.gif" },
       { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "Inside the Machine" },
+      { name: "twitter:description", content: "A scroll-driven 3D journey from a computer to a transistor." },
+      { name: "twitter:image", content: "https://inside-the-machine-one.vercel.app/preview.gif" },
     ],
     links: [
       {
