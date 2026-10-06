@@ -157,14 +157,23 @@ const Room = memo(function Room({ monitorOn }: { monitorOn: boolean }) {
       <a-box position="-0.1 0.8 39.78" width="0.22" height="0.02" depth="0.16" material={mat("#151a20")} />
       <a-box position="-0.1 0.92 39.76" width="0.04" height="0.24" depth="0.03" material={mat("#151a20")} />
       <a-box position="-0.1 1.18 39.75" width="0.8" height="0.48" depth="0.03" material={`color: #0c1015; metalness: 0.4; roughness: 0.5`} />
-      <a-plane
-        position="-0.1 1.18 39.767"
-        width="0.75"
-        height="0.43"
-        className={monitorOn ? "clickable" : undefined}
-        data-link={monitorOn ? "https://namishhh.vercel.app" : undefined}
-        material={monitorOn ? "src: #portfolio-shot; shader: flat" : "color: #020304; shader: flat"}
-      />
+      {monitorOn ? (
+        <a-plane
+          position="-0.1 1.18 39.767"
+          width="0.75"
+          height="0.43"
+          className="clickable"
+          data-link="https://namishhh.vercel.app"
+          material="src: #portfolio-shot; shader: flat"
+        />
+      ) : (
+        <a-plane
+          position="-0.1 1.18 39.767"
+          width="0.75"
+          height="0.43"
+          material="color: #020304; shader: flat"
+        />
+      )}
       <a-entity light={`type: point; color: ${C.screen}; intensity: ${monitorOn ? 1.1 : 0}; distance: 3.2`} position="-0.1 1.2 40.15" />
 
       {/* keyboard, mouse, mug */}
