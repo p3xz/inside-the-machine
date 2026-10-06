@@ -276,25 +276,31 @@ function SceneInner({ selectedId, onSelect, onToggle, gates, transistorOn, monit
             ov.style.visibility = "hidden";
           }
         } else {
-          pv.set(-0.475, 1.18, 39.767).project(cam);
-          const x1 = (pv.x * 0.5 + 0.5) * window.innerWidth;
-          pv.set(0.275, 1.18, 39.767).project(cam);
-          const x2 = (pv.x * 0.5 + 0.5) * window.innerWidth;
-          pv.set(-0.1, 1.395, 39.767).project(cam);
-          const yTop = (-pv.y * 0.5 + 0.5) * window.innerHeight;
-          const w = Math.abs(x2 - x1);
-          if (pv.z < 1 && w > 4) {
-            const h = w * (0.43 / 0.75);
-            ov.dataset.on = "1";
-            ov.style.opacity = "1";
-            ov.style.visibility = "visible";
-            ov.style.transform = `translate(${Math.min(x1, x2)}px, ${yTop}px)`;
-            ov.style.width = `${w}px`;
-            ov.style.height = `${h}px`;
-          } else if (ov.dataset.on === "1") {
-            ov.dataset.on = "";
-            ov.style.opacity = "0";
-            ov.style.visibility = "hidden";
+          try {
+            // object3D is a group; the real camera is the named child
+            const realCam = (camRef.current?.getObject3D?.("camera") || cam) as Any;
+            pv.set(-0.475, 1.18, 39.767).project(realCam);
+            const x1 = (pv.x * 0.5 + 0.5) * window.innerWidth;
+            pv.set(0.275, 1.18, 39.767).project(realCam);
+            const x2 = (pv.x * 0.5 + 0.5) * window.innerWidth;
+            pv.set(-0.1, 1.395, 39.767).project(realCam);
+            const yTop = (-pv.y * 0.5 + 0.5) * window.innerHeight;
+            const w = Math.abs(x2 - x1);
+            if (pv.z < 1 && w > 4) {
+              const h = w * (0.43 / 0.75);
+              ov.dataset.on = "1";
+              ov.style.opacity = "1";
+              ov.style.visibility = "visible";
+              ov.style.transform = `translate(${Math.min(x1, x2)}px, ${yTop}px)`;
+              ov.style.width = `${w}px`;
+              ov.style.height = `${h}px`;
+            } else if (ov.dataset.on === "1") {
+              ov.dataset.on = "";
+              ov.style.opacity = "0";
+              ov.style.visibility = "hidden";
+            }
+          } catch {
+            // overlay positioning must never break the camera loop
           }
         }
       }
