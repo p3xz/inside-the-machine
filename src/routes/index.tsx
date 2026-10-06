@@ -53,6 +53,23 @@ function Index() {
     audio.setMuted(m);
   }, []);
 
+  // A-Frame attaches a non-passive touchmove listener on its canvas that calls
+  // preventDefault ("prevent overscroll on mobile"), which kills native touch
+  // scrolling on phones. Intercept touchmove in the capture phase before it
+  // reaches the canvas and stop it there, so the browser performs a normal
+  // native scroll with momentum. Taps still work: touchstart/touchend/click
+  // are untouched.
+  useEffect(() => {
+    const onTouchMove = (e: TouchEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && typeof t.closest === "function" && t.closest(".machine-canvas")) {
+        e.stopPropagation();
+      }
+    };
+    window.addEventListener("touchmove", onTouchMove, { capture: true, passive: true });
+    return () => window.removeEventListener("touchmove", onTouchMove, { capture: true });
+  }, []);
+
   // no scrolling until the machine is powered on.
   // iOS Safari does not reliably re-enable scrolling when overflow is toggled
   // on documentElement alone, so lock both html and body and force a reflow.
