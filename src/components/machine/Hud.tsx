@@ -52,6 +52,8 @@ type Props = {
   onMute: () => void;
   onRestart: () => void;
   openLegal: (t: LegalTab) => void;
+  mobileNote: boolean;
+  onMobileContinue: () => void;
 };
 
 export const QUIZ_LEN = 5;
@@ -308,7 +310,29 @@ export function Hud(props: Props) {
       )}
 
       {/* boot sequence */}
-      {props.phase !== "ready" && <Boot phase={props.phase} onPowerOn={props.onPowerOn} openLegal={props.openLegal} />}
+      {props.phase !== "ready" &&
+        (props.mobileNote ? (
+          <MobileNote onContinue={props.onMobileContinue} />
+        ) : (
+          <Boot phase={props.phase} onPowerOn={props.onPowerOn} openLegal={props.openLegal} />
+        ))}
+    </div>
+  );
+}
+
+function MobileNote({ onContinue }: { onContinue: () => void }) {
+  return (
+    <div className="boot" data-phase="mobile">
+      <div className="boot-center">
+        <p className="eyebrow">INSIDE THE MACHINE</p>
+        <p className="mobile-note-text">FOR A BETTER EXPERIENCE, USE A PC.</p>
+        <div className="mobile-note-bar" aria-hidden="true">
+          <i />
+        </div>
+        <button className="power" onClick={onContinue}>
+          CONTINUE ON PHONE
+        </button>
+      </div>
     </div>
   );
 }

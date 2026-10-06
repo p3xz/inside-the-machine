@@ -32,6 +32,21 @@ function firing(a: Bits, b: Bits): Target[] {
 
 function Index() {
   const [phase, setPhase] = useState<Phase>("off");
+  // Phones get a short waiting screen suggesting a PC for the best experience.
+  const [mobileNote, setMobileNote] = useState<boolean>(() => {
+    if (typeof window === "undefined" || typeof navigator === "undefined") return false;
+    const coarse =
+      typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches;
+    const ua = /Android|iPhone|iPad|iPod|Mobile|BlackBerry|IEMobile|Opera Mini/i.test(
+      navigator.userAgent || ""
+    );
+    return coarse || ua;
+  });
+  useEffect(() => {
+    if (!mobileNote) return;
+    const id = window.setTimeout(() => setMobileNote(false), 3200);
+    return () => window.clearTimeout(id);
+  }, [mobileNote]);
   const [monitorOn, setMonitorOn] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [gates, setGates] = useState<GateInputs>({ and: [0, 0], or: [0, 0], not: [0] });
@@ -216,6 +231,8 @@ function Index() {
         onMute={toggleMute}
         onRestart={restart}
         openLegal={setLegal}
+        mobileNote={mobileNote}
+        onMobileContinue={() => setMobileNote(false)}
       />
       {legal && <LegalModal tab={legal} setTab={setLegal} onClose={() => setLegal(null)} />}
       <div className="scroll-track" aria-hidden="true" />

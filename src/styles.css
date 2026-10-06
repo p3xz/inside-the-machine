@@ -203,6 +203,10 @@ html, body { touch-action: pan-y; overscroll-behavior-y: auto; }
 .boot-hint { font-family: var(--font-mono); font-size: 0.6rem; letter-spacing: 0.18em; color: var(--muted-foreground); }
 .boot-log { font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.12em; color: var(--primary); position: absolute; left: 2rem; top: 2rem; margin: 0; white-space: pre; }
 .boot-legal { position: absolute; bottom: 1.5rem; }
+.mobile-note-text { font-family: var(--font-mono); font-size: 0.8rem; letter-spacing: 0.2em; color: var(--foreground); margin: 0; text-align: center; }
+.mobile-note-bar { width: 200px; height: 2px; background: #1c1c1c; overflow: hidden; }
+.mobile-note-bar i { display: block; height: 100%; width: 100%; background: #6f6f6f; transform-origin: left; animation: note-fill 3.2s linear forwards; }
+@keyframes note-fill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 
 .mute { position: absolute; top: 1.75rem; right: 2rem; display: flex; align-items: center; gap: 0.55rem; font-family: var(--font-mono); font-size: 0.6rem; letter-spacing: 0.16em; color: var(--muted-foreground); background: none; border: 0; padding: 0.3rem; }
 .mute:hover { color: var(--foreground); }
