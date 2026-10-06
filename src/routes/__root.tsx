@@ -8,9 +8,10 @@ import {
   Scripts,
   type ErrorComponentProps,
 } from "@tanstack/react-router";
-import { type ReactNode } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import appCss from "../styles.css?url";
+import { audio } from "../lib/audio";
 
 function NotFoundComponent() {
   return (
@@ -125,6 +126,56 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
+      <EasterEgg />
     </QueryClientProvider>
+  );
+}
+
+const KONAMI = [
+  "ArrowUp",
+  "ArrowUp",
+  "ArrowDown",
+  "ArrowDown",
+  "ArrowLeft",
+  "ArrowRight",
+  "ArrowLeft",
+  "ArrowRight",
+  "b",
+  "a",
+];
+
+function EasterEgg() {
+  const [found, setFound] = useState(false);
+  const idx = useRef(0);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (found) {
+        setFound(false);
+        return;
+      }
+      const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+      idx.current = key === KONAMI[idx.current] ? idx.current + 1 : key === KONAMI[0] ? 1 : 0;
+      if (idx.current === KONAMI.length) {
+        idx.current = 0;
+        audio.init();
+        audio.startup();
+        setFound(true);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [found]);
+
+  if (!found) return null;
+  return (
+    <div className="easter-egg" onClick={() => setFound(false)}>
+      <div className="easter-egg-box">
+        <p>&gt; BACKDOOR FOUND</p>
+        <p>&gt; You entered the Konami code.</p>
+        <p>&gt; The truth: the entire journey happened between two keystrokes.</p>
+        <p className="easter-egg-dim">&gt; press anywhere to return</p>
+      </div>
+    </div>
   );
 }

@@ -208,6 +208,22 @@ html, body { touch-action: pan-y; overscroll-behavior-y: auto; }
 .mobile-note-bar i { display: block; height: 100%; width: 100%; background: #6f6f6f; transform-origin: left; animation: note-fill 3.2s linear forwards; }
 @keyframes note-fill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 
+/* ---------- features page ---------- */
+.features { min-height: 100vh; background: #000; color: var(--foreground); padding: 4rem 1.5rem 5rem; max-width: 42rem; margin: 0 auto; font-family: var(--font-mono); }
+.features-title { font-size: 1.9rem; letter-spacing: 0.22em; margin: 1rem 0 0.4rem; font-weight: 500; }
+.features-sub { color: var(--muted-foreground); font-size: 0.7rem; letter-spacing: 0.18em; margin: 0; }
+.features-section { margin-top: 2.4rem; }
+.features-section h2 { font-size: 0.8rem; letter-spacing: 0.22em; color: var(--primary); margin: 0 0 0.55rem; font-weight: 500; }
+.features-section p { font-size: 0.85rem; line-height: 1.75; color: #bdbdbd; margin: 0; }
+.features-back { display: inline-block; margin-top: 3rem; font-size: 0.72rem; letter-spacing: 0.2em; color: #000; background: #e8e8e8; padding: 0.9rem 1.6rem; text-decoration: none; }
+.features-back:hover { background: #fff; }
+
+/* ---------- easter egg ---------- */
+.easter-egg { position: fixed; inset: 0; z-index: 100; background: rgba(0, 0, 0, 0.93); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.easter-egg-box { font-family: var(--font-mono); color: #8fd98f; font-size: 0.85rem; line-height: 2; letter-spacing: 0.08em; padding: 2rem; border: 1px solid #1f3d1f; background: #020603; max-width: 90vw; }
+.easter-egg-box p { margin: 0; }
+.easter-egg-dim { color: #3f6b3f; }
+
 .mute { position: absolute; top: 1.75rem; right: 2rem; display: flex; align-items: center; gap: 0.55rem; font-family: var(--font-mono); font-size: 0.6rem; letter-spacing: 0.16em; color: var(--muted-foreground); background: none; border: 0; padding: 0.3rem; }
 .mute:hover { color: var(--foreground); }
 .mute-bars { display: flex; gap: 2px; align-items: flex-end; height: 0.7rem; }
@@ -239,8 +255,8 @@ html, body { touch-action: pan-y; overscroll-behavior-y: auto; }
 
 /* ---------- ending + legal ---------- */
 .legal-links { display: flex; gap: 1.4rem; margin-top: 1.6rem; pointer-events: auto; }
-.legal-links button { font-family: var(--font-mono); font-size: 0.58rem; letter-spacing: 0.18em; color: var(--muted-foreground); background: none; border: 0; padding: 0.3rem 0; border-bottom: 1px solid transparent; }
-.legal-links button:hover { color: var(--foreground); border-bottom-color: var(--hairline); }
+.legal-links button, .legal-links a { font-family: var(--font-mono); font-size: 0.58rem; letter-spacing: 0.18em; color: var(--muted-foreground); background: none; border: 0; padding: 0.3rem 0; border-bottom: 1px solid transparent; text-decoration: none; cursor: pointer; }
+.legal-links button:hover, .legal-links a:hover { color: var(--foreground); border-bottom-color: var(--hairline); }
 .ending-note { margin-top: 0.7rem; font-size: 0.68rem; color: var(--muted-foreground); }
 .legal-backdrop { position: fixed; inset: 0; z-index: 30; background: oklch(0.05 0 0 / 60%); display: flex; align-items: center; justify-content: center; padding: 1rem; }
 .legal { width: min(36rem, 100%); max-height: 82vh; overflow: auto; background: var(--background); border: 1px solid var(--hairline); border-left: 2px solid var(--primary); padding: 1.3rem 1.5rem; font-family: var(--font-mono); font-size: 0.68rem; letter-spacing: 0.08em; color: var(--muted-foreground); }

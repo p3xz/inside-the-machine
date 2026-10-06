@@ -292,6 +292,7 @@ export function Hud(props: Props) {
             <button onClick={() => props.openLegal("privacy")}>PRIVACY</button>
             <button onClick={() => props.openLegal("credits")}>CREDITS</button>
             <button onClick={() => props.openLegal("legal")}>LEGAL</button>
+            <a href="/features">FEATURES</a>
           </nav>
           <p className="ending-note">An educational visualization. Some hardware details are simplified.</p>
         </div>
