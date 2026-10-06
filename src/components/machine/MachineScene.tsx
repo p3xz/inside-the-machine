@@ -163,7 +163,7 @@ const Room = memo(function Room({ monitorOn }: { monitorOn: boolean }) {
         height="0.43"
         className={monitorOn ? "clickable" : undefined}
         data-link={monitorOn ? "https://namishhh.vercel.app" : undefined}
-        material={monitorOn ? "src: url(/portfolio-shot.jpg); shader: flat" : "color: #020304; shader: flat"}
+        material={monitorOn ? "src: #portfolio-shot; shader: flat" : "color: #020304; shader: flat"}
       />
       <a-entity light={`type: point; color: ${C.screen}; intensity: ${monitorOn ? 1.1 : 0}; distance: 3.2`} position="-0.1 1.2 40.15" />
 
@@ -364,6 +364,10 @@ function SceneInner({ selectedId, onSelect, onToggle, gates, transistorOn, monit
       raycaster="objects: .clickable; far: 40"
     >
       <a-entity ref={camRef} camera="fov: 55; near: 0.02; far: 200" look-controls="enabled: false" wasd-controls="enabled: false" />
+
+      <a-assets>
+        <img id="portfolio-shot" src="/portfolio-shot.jpg" crossOrigin="anonymous" />
+      </a-assets>
 
       <a-entity light="type: ambient; color: #6b7c8f; intensity: 0.45" />
       <a-entity light="type: directional; color: #cfe9ff; intensity: 0.8" position="4 8 -10" />
